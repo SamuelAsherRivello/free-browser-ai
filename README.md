@@ -1,16 +1,11 @@
 <!-- AI: Keep commands rooted at the repository. The Vite application, source, tests, and build output belong in react-trading-simulator-runtime-agent/. -->
-![Samuel Asher Rivello](react-trading-simulator-runtime-agent/documentation/samuel-asher-rivello-banner.png)
-
 # React Trading Simulator Runtime Agent
 
-<!-- AI: Update this project summary when the template is used. -->
-This is the project repo....
+An interactive React and Vite runtime shell for developing trading-simulation workflows. It includes project metadata, version display, and a fullscreen control while trading features are developed.
 
-## Images
+## Screenshot
 
-### Screenshots
-
-<a href="react-trading-simulator-runtime-agent/documentation/screenshot01.png"><img src="react-trading-simulator-runtime-agent/documentation/screenshot01.png" width="400" alt="Screenshot placeholder" /></a>
+![React Trading Simulator Runtime Agent](react-trading-simulator-runtime-agent/documentation/screenshot01.png)
 
 ## Live Demo
 
@@ -18,7 +13,7 @@ This is the project repo....
 
 ## Table of Contents
 
-1. [Images](#images)
+1. [Screenshot](#screenshot)
 2. [Live Demo](#live-demo)
 3. [Getting Started](#getting-started)
 4. [Project Details](#project-details)
@@ -26,34 +21,34 @@ This is the project repo....
 
 ## Getting Started
 
-<!-- AI: Update this getting-started summary when the template is used. -->
-This is the getting started...
+Requires Node.js 24 and npm.
 
 ### 🛠 Build Project
 
-1. From the repository root, run `npm install`.
+1. From the repository root, run `npm ci`.
 2. Run `npm run build`.
+3. Run `npx playwright install chromium` before generating screenshots locally.
 
 ### 🛠 Run Project
 
 1. From the repository root, run `npm run dev` and open the localhost URL Vite prints.
 2. Run `npm test` to execute the focused source checks.
+3. Run `npm run capture:screenshot` after a production build to refresh the README screenshot.
 
 ### 🛠 Release Version
 
 1. Run `npm test` and `npm run build` from the repository root.
 2. Push to `main` to deploy through the GitHub Pages workflow.
-3. Run the **Release** workflow from GitHub Actions to bump the patch version, tag it, and create the GitHub release.
+3. Run the **Release** workflow from GitHub Actions to capture a current screenshot, bump the patch version, tag it, and create the GitHub release.
 
 ## Project Details
 
-<!-- AI: Update these project details when the template is used. -->
-This is the project details...
+The application is a Vite-powered React single-page app. The repository root holds package configuration and workflows; the application directory contains the browser entry point, components, styles, tests, and documentation assets.
 
 ### 📝 Structure
 
 - `react-trading-simulator-runtime-agent/index.html` provides the plain safe-area HTML shell.
-- `react-trading-simulator-runtime-agent/test/` contains focused automated checks for the starter.
+- `react-trading-simulator-runtime-agent/test/` contains focused automated checks for the runtime shell.
 - `react-trading-simulator-runtime-agent/documentation/` contains canonical README images and project
   documentation assets.
 
