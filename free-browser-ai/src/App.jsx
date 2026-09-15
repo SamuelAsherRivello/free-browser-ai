@@ -3,7 +3,7 @@ import versionText from "../../version.txt?raw";
 import { prepareAdapter } from "./adapters.js";
 import { effectiveGenerationProfile, generationProfileLimits, modelFor, modelOptionLabel, modelsFor, providerModelKey, providers } from "./catalog.js";
 import { RichContent } from "./rich-content.js";
-import { addProviderModel, makeId, removeProviderModel, restoreState, saveState, storageKey } from "./state.js";
+import { addProviderModel, makeId, removeProviderModel, restoreGenerationProfile, restoreState, saveState, storageKey } from "./state.js";
 
 const repositoryUrl = "https://github.com/SamuelAsherRivello/free-browser-ai";
 
@@ -18,6 +18,14 @@ function chatModelLabelFor(configuration) {
   const modelName = model?.label ?? configuration.model.split("/").pop() ?? configuration.model;
   const shortModel = modelName.match(/Qwen2\.5/)?.[0] ?? modelName.replace(/[- ]?(Instruct|ONNX|q4f16|MLC).*$/i, "").trim();
   return `${provider} - ${shortModel}`;
+}
+
+function conversationTitleFor(configuration, number) {
+  const provider = configuration.provider === "transformers" ? "T" : "W";
+  const model = modelFor(configuration.provider, configuration.model);
+  const modelName = model?.label ?? configuration.model;
+  const shortModel = modelName.match(/Qwen2\.5/) ? "Q2.5" : modelName.replace(/[^A-Za-z0-9]/g, "").slice(0, 5);
+  return `Chat ${number} - ${provider}${shortModel}`;
 }
 
 function GitHubMark() {
@@ -54,29 +62,31 @@ export function App() {
   const updateProviderModel = (id, update) => setProviderModels((items) => items.map((item) => item.id === id ? update(item) : item));
   const updateConversation = (id, update) => setConversations((items) => items.map((item) => item.id === id ? update(item) : item));
   const updateGenerationProfile = (providerId, modelId, name, value) => setGenerationProfiles((profiles) => ({ ...profiles, [providerModelKey(providerId, modelId)]: { ...profiles[providerModelKey(providerId, modelId)], [name]: value } }));
-  const restoreGenerationProfile = (providerId, modelId) => setGenerationProfiles((profiles) => { const next = { ...profiles }; delete next[providerModelKey(providerId, modelId)]; return next; });
+  const resetGenerationProfile = (providerId, modelId) => setGenerationProfiles((profiles) => restoreGenerationProfile(profiles, providerId, modelId));
 
   const prepare = async (configuration) => {
+    setEditingConfigurationId(null);
     preparations.current.get(configuration.id)?.abort(new Error("Preparation restarted."));
     const controller = new AbortController();
     preparations.current.set(configuration.id, controller);
-    for (const [id, adapter] of adapters.current) {
-      if (id !== configuration.id) {
-        void adapter.release();
-        adapters.current.delete(id);
-        updateProviderModel(id, (item) => ({ ...item, status: "needs-preparation", progress: "Released to keep browser memory available.", error: "" }));
-      }
-    }
     adapters.current.get(configuration.id)?.release();
     adapters.current.delete(configuration.id);
     updateProviderModel(configuration.id, (item) => ({ ...item, status: "loading", error: "", progress: "Starting local runtime...", progressPercent: null, startedAt: Date.now() }));
     try {
       const adapter = await prepareAdapter(configuration.provider, configuration.model, (progress, progressPercent) => updateProviderModel(configuration.id, (item) => ({ ...item, progress, progressPercent: Number.isFinite(progressPercent) ? Math.round(progressPercent) : null })), controller.signal);
+      for (const [id, activeAdapter] of adapters.current) {
+        if (id !== configuration.id) {
+          void activeAdapter.release();
+          adapters.current.delete(id);
+          updateProviderModel(id, (item) => ({ ...item, status: "needs-preparation", progress: "Released to free RAM for the other ready Provider Model.", error: "" }));
+        }
+      }
       adapters.current.set(configuration.id, adapter);
       updateProviderModel(configuration.id, (item) => ({ ...item, status: "ready", error: "", progress: "Ready", progressPercent: 100, startedAt: null }));
       return adapter;
     } catch (error) {
-      const message = controller.signal.reason instanceof Error ? controller.signal.reason.message : error instanceof Error ? error.message : "Preparation failed.";
+      const rawMessage = controller.signal.reason instanceof Error ? controller.signal.reason.message : error instanceof Error ? error.message : "Preparation failed.";
+      const message = rawMessage.includes("bad_alloc") ? "Not enough browser memory to prepare this model. Try the Lightweight 0.5B model, close other tabs, then retry." : rawMessage;
       updateProviderModel(configuration.id, (item) => ({ ...item, status: "failed", error: message, progress: "Preparation failed", progressPercent: null, startedAt: null }));
       throw error;
     } finally {
@@ -86,6 +96,7 @@ export function App() {
 
   const addConfiguration = () => {
     setSettingsError("");
+    if (providerModels.some((item) => item.provider === provider && item.model === model)) return;
     try {
       const next = addProviderModel(providerModels, provider, model);
       setProviderModels(next);
@@ -106,7 +117,9 @@ export function App() {
 
   const createConversation = () => {
     if (!selectedConfiguration) return;
-    const conversation = { id: makeId(), title: `Conversation ${conversations.length + 1}`, providerModelId: selectedConfiguration, messages: [{ id: makeId(), role: "assistant", content: "Type your prompt below", isWelcome: true }], status: "ready", phase: "", startedAt: null, error: "", retryPrompt: "" };
+    const configuration = providerModels.find((item) => item.id === selectedConfiguration);
+    if (!configuration) return;
+    const conversation = { id: makeId(), title: conversationTitleFor(configuration, conversations.length + 1), providerModelId: selectedConfiguration, messages: [{ id: makeId(), role: "assistant", content: "Type your prompt below", isWelcome: true }], status: "ready", phase: "", startedAt: null, error: "", retryPrompt: "" };
     setConversations((items) => [...items, conversation]);
     setActiveConversationId(conversation.id);
     setAddingConversation(false);
@@ -158,31 +171,31 @@ export function App() {
 
   return <main className="workspace" aria-label="Free Browser AI chat workspace">
     <nav className="top_navigation" aria-label="Workspace"><div className="top_navigation_tabs"><button type="button" title="Open project overview" aria-current={view === "about" ? "page" : undefined} onClick={() => setView("about")}>About</button><button type="button" title="Open workspace settings" aria-current={view === "settings" ? "page" : undefined} onClick={() => setView("settings")}>Settings</button><button type="button" title="Open workspace chat" aria-current={view === "chat" ? "page" : undefined} onClick={() => setView("chat")}>Chat</button></div><div className="workspace_brand corner corner_top_left"><span className="corner_title">Free Browser AI</span><a className="corner corner_top_right" href={repositoryUrl} aria-label="Free Browser AI project on GitHub"><GitHubMark /></a></div></nav>
-    {view === "about" ? <About /> : view === "settings" ? <Settings provider={provider} model={model} providerModels={providerModels} generationProfiles={generationProfiles} editingConfigurationId={editingConfigurationId} error={settingsError} onProvider={changeProvider} onModel={setModel} onAdd={addConfiguration} onPrepare={prepare} onRemove={removeConfiguration} onGenerationChange={updateGenerationProfile} onRestoreGeneration={restoreGenerationProfile} onEdit={setEditingConfigurationId} onReset={reset} /> : <Chat adding={addingConversation} setAdding={setAddingConversation} selected={selectedConfiguration} setSelected={setSelectedConfiguration} configurations={providerModels} conversations={conversations} active={activeConversation} setActive={setActiveConversationId} onCreate={createConversation} onClose={closeConversation} prompt={prompt} setPrompt={setPrompt} onSend={send} onStop={stop} onCopy={copyText} />}
+    {view === "about" ? <About /> : view === "settings" ? <Settings provider={provider} model={model} providerModels={providerModels} generationProfiles={generationProfiles} editingConfigurationId={editingConfigurationId} error={settingsError} onProvider={changeProvider} onModel={setModel} onAdd={addConfiguration} onPrepare={prepare} onRemove={removeConfiguration} onGenerationChange={updateGenerationProfile} onRestoreGeneration={resetGenerationProfile} onEdit={setEditingConfigurationId} onReset={reset} /> : <Chat adding={addingConversation} setAdding={setAddingConversation} selected={selectedConfiguration} setSelected={setSelectedConfiguration} configurations={providerModels} conversations={conversations} active={activeConversation} setActive={setActiveConversationId} onCreate={createConversation} onClose={closeConversation} prompt={prompt} setPrompt={setPrompt} onSend={send} onStop={stop} onCopy={copyText} />}
     {copyFeedback && <p className="copy_feedback" role="status">{copyFeedback}</p>}
     <footer className="workspace_footer"><div className="corner corner_bottom_left" aria-hidden="true" /><div className="corner corner_bottom_right"><span className="corner_body">v{version}</span></div></footer>
   </main>;
 }
 
 function About() {
-  return <section className="panel settings_panel" aria-labelledby="about-title"><h1 id="about-title">About</h1><p>Free Browser AI is a privacy-first local chat workspace for experimenting with small language models directly in your browser. It keeps conversations on your device, lets you compare <a href="https://huggingface.co/docs/transformers.js/">Transformers.js</a> and <a href="https://webllm.mlc.ai/">WebLLM</a> runtimes, prepares models only when needed, and offers controls for managing provider models without a backend or cloud account.</p><h2 className="about_heading">Benefits</h2><ul className="about_list"><li>Runs model inference locally in supported browsers.</li><li>Keeps conversations and settings in local browser storage.</li><li>Lets you compare Transformers.js and WebLLM provider models.</li></ul><h2 className="about_heading">Drawbacks</h2><ul className="about_list"><li>Models must download before their first use.</li><li>WebLLM needs a compatible WebGPU-enabled browser.</li></ul></section>;
+  return <section className="panel settings_panel" aria-labelledby="about-title"><h1 id="about-title">About</h1><h2 className="tab_subheading">Local browser AI</h2><p>Free Browser AI is a local chat workspace for experimenting with small language models directly in your browser. It prepares models only when needed and offers controls for managing provider models without a backend or cloud account.</p><h2 className="about_heading">Runtimes</h2><ul className="about_list"><li><a href="https://huggingface.co/docs/transformers.js/">Transformers.js</a> runs compatible models in the browser with CPU/WASM support and optional WebGPU acceleration.</li><li><a href="https://webllm.mlc.ai/">WebLLM</a> runs compatible models through WebGPU in supported browsers.</li></ul><h2 className="about_heading">Benefits</h2><ul className="about_list"><li>Runs model inference locally in supported browsers.</li><li>Keeps conversations and settings in local browser storage.</li></ul><h2 className="about_heading">Drawbacks</h2><ul className="about_list"><li>Models must download before their first use.</li><li>WebLLM needs a compatible WebGPU-enabled browser.</li></ul></section>;
 }
 
 function Settings({ provider, model, providerModels, generationProfiles, editingConfigurationId, error, onProvider, onModel, onAdd, onPrepare, onRemove, onGenerationChange, onRestoreGeneration, onEdit, onReset }) {
+  const isDuplicate = providerModels.some((item) => item.provider === provider && item.model === model);
   return <section className="panel settings_panel" aria-labelledby="settings-title">
     <h1 id="settings-title">Settings</h1>
-    <h2 className="settings_subheading">Provider Models</h2>
-    <p>Add a model, choose its generation settings, then prepare it for conversations.</p>
-    <div className="configuration_form"><label>Provider<select value={provider} onChange={(event) => onProvider(event.target.value)}>{Object.entries(providers).map(([id, item]) => <option key={id} value={id}>{item.label}</option>)}</select></label><label>Model<select value={model} onChange={(event) => onModel(event.target.value)}>{modelsFor(provider).map((item) => <option key={item.id} value={item.id}>{modelOptionLabel(item)}</option>)}</select></label><button type="button" title="Add selected provider model" className="primary_button" onClick={onAdd}>Add Provider Model</button></div>
-    {error && <p className="error" role="alert">{error}</p>}
+    <h2 className="tab_subheading">Provider Models</h2>
+    <p>Add a model and prepare it for conversations. Settings are optional and use model defaults until changed.</p>
+    <div className="configuration_form"><label>Provider<select value={provider} onChange={(event) => onProvider(event.target.value)}>{Object.entries(providers).map(([id, item]) => <option key={id} value={id}>{item.label}</option>)}</select></label><label>Model<select value={model} onChange={(event) => onModel(event.target.value)}>{modelsFor(provider).map((item) => <option key={item.id} value={item.id}>{modelOptionLabel(item)}</option>)}</select></label>{isDuplicate ? <span className="disabled_button_tooltip" title="This Provider Model is already configured below."><button type="button" className="primary_button" disabled>Add Provider Model</button></span> : <button type="button" title="Add selected provider model" className="primary_button" onClick={onAdd}>Add Provider Model</button>}</div>
+    {error && !isDuplicate && <p className="error" role="alert">{error}</p>}
     <div className="configuration_list">{providerModels.length === 0 ? <p>No Provider Models configured.</p> : providerModels.map((item) => <ProviderModelCard key={item.id} item={item} profile={effectiveGenerationProfile(item.provider, item.model, generationProfiles[providerModelKey(item.provider, item.model)])} hasOverrides={Object.keys(generationProfiles[providerModelKey(item.provider, item.model)] || {}).length > 0} editing={editingConfigurationId === item.id} onPrepare={onPrepare} onRemove={onRemove} onChange={onGenerationChange} onRestore={onRestoreGeneration} onEdit={onEdit} />)}</div>
     <section className="reset_section" aria-labelledby="reset-title"><h2 id="reset-title">Persistence</h2><p>Remove saved conversations, Provider Models, and generation settings, then reload this page. Model files cached by browser runtimes may remain.</p><button type="button" title="Reset local workspace data" className="reset_button" onClick={onReset}>Reset local workspace</button></section>
   </section>;
 }
 
 function ProviderModelCard({ item, profile, hasOverrides, editing, onPrepare, onRemove, onChange, onRestore, onEdit }) {
-  const showSettings = item.status !== "ready" || editing;
-  return <article className="configuration"><div className="configuration_details"><strong>{labelFor(item)}</strong><PreparationStatus item={item} />{item.status === "loading" && <PreparationProgress percent={item.progressPercent} />}{item.error && <p className="error" role="alert">{item.error}</p>}{showSettings ? <GenerationSettings profile={profile} provider={item.provider} model={item.model} hasOverrides={hasOverrides} onChange={onChange} onRestore={onRestore} /> : <p className="generation_summary">Generation settings are configured.</p>}</div><div className="configuration_actions">{item.status === "needs-preparation" && <button type="button" title="Prepare this provider model" onClick={() => void onPrepare(item)}>Prepare</button>}{item.status === "failed" && <button type="button" title="Retry this provider model" onClick={() => void onPrepare(item)}>Retry</button>}{item.status === "ready" && <button type="button" title="Update this provider model settings" onClick={() => onEdit(editing ? null : item.id)}>{editing ? "Done" : "Update Settings"}</button>}<button type="button" title="Remove this provider model" onClick={() => onRemove(item.id)}>Remove</button></div></article>;
+  return <article className="configuration"><div className="configuration_details"><strong>{labelFor(item)}</strong><PreparationStatus item={item} />{item.status === "loading" && <PreparationProgress percent={item.progressPercent} />}{item.error && <p className="error" role="alert">{item.error}</p>}{editing && <GenerationSettings profile={profile} provider={item.provider} model={item.model} hasOverrides={hasOverrides} onChange={onChange} onRestore={onRestore} />}</div><div className="configuration_actions">{item.status !== "loading" && <button type="button" title="Toggle this provider model settings" aria-expanded={editing} onClick={() => onEdit(editing ? null : item.id)}>Settings</button>}{item.status === "needs-preparation" && <button type="button" title="Prepare this provider model" onClick={() => void onPrepare(item)}>Prepare</button>}{item.status === "failed" && <button type="button" title="Retry this provider model" onClick={() => void onPrepare(item)}>Retry</button>}<button type="button" title="Remove this provider model" onClick={() => onRemove(item.id)}>Remove</button></div></article>;
 }
 
 function LegacySettings({ provider, model, providerModels, generationProfiles, error, onProvider, onModel, onAdd, onPrepare, onRemove, onGenerationChange, onRestoreGeneration, onReset }) {
@@ -193,9 +206,8 @@ function LegacySettings({ provider, model, providerModels, generationProfiles, e
 
 function GenerationSettings({ profile, provider, model, hasOverrides, onChange, onRestore }) {
   if (!profile) return null;
-  const [expanded, setExpanded] = useState(true);
   const controls = [{ name: "temperature", label: "Temperature", help: "Lower values keep responses focused; higher values add variety." }, { name: "topP", label: "Top P", help: "Limits choices to the most likely words." }, { name: "repetitionPenalty", label: "Repetition penalty", help: "Higher values discourage repeated phrases." }, { name: "maxNewTokens", label: "Response length", help: "Limits the number of generated response tokens." }];
-  return <section className="generation_section" aria-label="Generation settings"><button type="button" className="generation_toggle" aria-expanded={expanded} onClick={() => setExpanded((value) => !value)}><span aria-hidden="true">{expanded ? "v" : ">"}</span> Generation</button>{expanded && <><p>{hasOverrides ? "Using custom settings for" : "Using recommended settings for"} {modelFor(provider, model)?.label}.</p><div className="generation_controls">{controls.map(({ name, label, help }) => { const limit = generationProfileLimits[name]; return <label key={name} className="generation_control"><span>{label} <output>{profile[name]}</output></span><input type="range" min={limit.min} max={limit.max} step={limit.step} value={profile[name]} aria-describedby={`${providerModelKey(provider, model)}-${name}-help`} onChange={(event) => onChange(provider, model, name, Number(event.target.value))} /><small id={`${providerModelKey(provider, model)}-${name}-help`}>{help} Range {limit.min} to {limit.max}.</small></label>; })}</div><button type="button" onClick={() => onRestore(provider, model)}>Restore recommended settings</button></>}</section>;
+  return <section className="generation_section" aria-label="Generation settings"><h3>Generation</h3><p>{hasOverrides ? "Using custom settings for" : "Using recommended settings for"} {modelFor(provider, model)?.label}.</p><div className="generation_controls">{controls.map(({ name, label, help }) => { const limit = generationProfileLimits[name]; return <label key={name} className="generation_control"><span>{label} <output>{profile[name]}</output></span><input type="range" min={limit.min} max={limit.max} step={limit.step} value={profile[name]} aria-describedby={`${providerModelKey(provider, model)}-${name}-help`} onChange={(event) => onChange(provider, model, name, Number(event.target.value))} /><small id={`${providerModelKey(provider, model)}-${name}-help`}>{help} Range {limit.min} to {limit.max}.</small></label>; })}</div><button type="button" onClick={() => onRestore(provider, model)}>Restore recommended settings</button></section>;
 }
 
 function LegacyGenerationSettings({ profile, provider, model, hasOverrides, onChange, onRestore }) {
@@ -213,7 +225,7 @@ function PreparationStatus({ item }) {
     const interval = setInterval(update, 250);
     return () => clearInterval(interval);
   }, [item.status, item.startedAt]);
-  return <p className={`status ${item.status}`}>{item.progress}{item.status === "loading" && item.startedAt ? ` (${seconds} secs)` : ""}</p>;
+  return <p className={`status ${item.status}${item.progress.startsWith("Released to free RAM") ? " released" : ""}`}>{item.progress}{item.status === "loading" && item.startedAt ? ` (${seconds} secs)` : ""}</p>;
 }
 
 function PreparationProgress({ percent }) {
@@ -222,7 +234,7 @@ function PreparationProgress({ percent }) {
 
 function Chat({ adding, setAdding, selected, setSelected, configurations, conversations, active, setActive, onCreate, onClose, prompt, setPrompt, onSend, onStop, onCopy }) {
   const available = configurations.filter((item) => item.status === "ready");
-  return <section className="panel chat_panel" aria-labelledby="chat-title"><div className="panel_heading"><div><h1 id="chat-title">Chat</h1><p>Private conversations run entirely in this browser.</p></div><button type="button" title="Create a new conversation" className="primary_button" onClick={() => setAdding(true)}>Add Conversation</button></div>{adding && <div className="new_conversation"><label>Provider Model<select value={selected} onChange={(event) => setSelected(event.target.value)}><option value="">Select a Provider Model</option>{available.map((item) => <option key={item.id} value={item.id}>{labelFor(item)}</option>)}</select></label><button type="button" title="Create selected conversation tab" className="primary_button" disabled={!selected} onClick={onCreate}>Create</button></div>}{conversations.length > 0 && <div className="tab_list" role="tablist" aria-label="Conversations">{conversations.map((item) => <div className="tab_item" key={item.id}><button type="button" title="Open this conversation tab" role="tab" aria-selected={item.id === active?.id} onClick={() => setActive(item.id)}>{item.title}</button><button type="button" className="close_tab" title="Close this conversation tab" aria-label={`Close ${item.title}`} onClick={() => onClose(item.id)}>x</button></div>)}</div>}{active ? <Conversation conversation={active} configuration={configurations.find((item) => item.id === active.providerModelId)} prompt={prompt} setPrompt={setPrompt} onSend={onSend} onStop={onStop} onCopy={onCopy} /> : !adding && <p className="empty_state">Add a conversation, then choose a Provider Model.</p>}</section>;
+  return <section className="panel chat_panel" aria-labelledby="chat-title"><div className="panel_heading"><div><h1 id="chat-title">Chat</h1><h2 className="tab_subheading">Conversations</h2><p>Conversations run entirely in this browser.</p></div><button type="button" title="Create a new conversation" className="primary_button" onClick={() => setAdding(true)}>Add Conversation</button></div>{adding && <div className="new_conversation"><label>Provider Model<select value={selected} onChange={(event) => setSelected(event.target.value)}><option value="">Select a Provider Model</option>{available.map((item) => <option key={item.id} value={item.id}>{labelFor(item)}</option>)}</select></label><button type="button" title="Create selected conversation tab" className="primary_button" disabled={!selected} onClick={onCreate}>Create</button></div>}{conversations.length > 0 && <div className="tab_list" role="tablist" aria-label="Conversations">{conversations.map((item) => <div className="tab_item" key={item.id}><button type="button" title="Open this conversation tab" role="tab" aria-selected={item.id === active?.id} onClick={() => setActive(item.id)}>{item.title}</button><button type="button" className="close_tab" title="Close ${item.title}" aria-label={`Close ${item.title}`} onClick={() => onClose(item.id)}>x</button></div>)}</div>}{active ? <Conversation conversation={active} configuration={configurations.find((item) => item.id === active.providerModelId)} prompt={prompt} setPrompt={setPrompt} onSend={onSend} onStop={onStop} onCopy={onCopy} /> : !adding && <p className="empty_state">Add a conversation, then choose a Provider Model.</p>}</section>;
 }
 
 function Conversation({ conversation, configuration, prompt, setPrompt, onSend, onStop, onCopy }) {

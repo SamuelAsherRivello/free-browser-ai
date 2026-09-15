@@ -21,5 +21,5 @@
 
 ## 5. Validate Behavior
 
-- [ ] 5.1 Add focused automated coverage for catalog/documentation agreement, profile resolution, legacy persistence, UI control semantics, restore behavior, and adapter option mapping; verify `npm test` passes.
-- [ ] 5.2 Run `npm run build` and inspect the Settings UI at desktop and narrow viewport widths; verify sliders remain usable and existing Provider Model management and conversation behavior remain intact.
+- [x] 5.1 Add focused automated coverage for catalog/documentation agreement, profile resolution, legacy persistence, UI control semantics, restore behavior, and adapter option mapping; verify `npm test` passes.
+- [x] 5.2 Run `npm run build` and inspect the Settings UI at desktop and narrow viewport widths; verify sliders remain usable and existing Provider Model management and conversation behavior remain intact.

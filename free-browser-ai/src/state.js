@@ -40,9 +40,15 @@ export function sanitizeGenerationProfiles(profiles) {
   return Object.fromEntries(Object.entries(profiles).map(([key, profile]) => [key, Object.fromEntries(Object.entries(profile || {}).filter(([name, value]) => isValidGenerationProfileValue(name, value)))]));
 }
 
+export function restoreGenerationProfile(profiles, providerId, modelId) {
+  const next = { ...profiles };
+  delete next[`${providerId}:${modelId}`];
+  return next;
+}
+
 export function addProviderModel(items, provider, model) {
   if (items.some((item) => item.provider === provider && item.model === model)) throw new Error("This Provider Model is already configured.");
-  return [...items, { id: makeId(), provider, model, status: "needs-preparation", progress: "Choose generation settings, then prepare this model.", error: "" }];
+  return [...items, { id: makeId(), provider, model, status: "needs-preparation", progress: "Not prepared.", error: "" }];
 }
 
 export function removeProviderModel(providerModels, conversations, providerModelId) {
