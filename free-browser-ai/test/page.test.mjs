@@ -3,8 +3,8 @@ import test from "node:test";
 import { createElement } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import viteConfig from "../../vite.config.js";
-import { addProviderModel, removeProviderModel, restoreState, saveState, storageKey } from "../src/state.js";
-import { effectiveGenerationProfile, modelFor, modelsFor, providerModelKey } from "../src/catalog.js";
+import { addProviderModel, catalogVersion, removeProviderModel, restoreState, saveState, storageKey } from "../src/state.js";
+import { effectiveGenerationProfile, modelFor, modelOptionLabel, modelsFor, providerModelKey } from "../src/catalog.js";
 import { RichContent } from "../src/rich-content.js";
 
 const appRoot = new URL("../", import.meta.url);
@@ -14,10 +14,15 @@ test("builds for the Free Browser AI GitHub Pages path", () => {
   if (viteConfig.base !== "/free-browser-ai/") throw new Error("The GitHub Pages build must use the Free Browser AI path.");
 });
 
-test("catalog exposes a separate validated model for each provider", () => {
-  if (!modelFor("transformers", modelsFor("transformers")[0].id)) throw new Error("Missing Transformers.js model.");
-  if (!modelFor("webllm", modelsFor("webllm")[0].id)) throw new Error("Missing WebLLM model.");
-  for (const [provider, model] of [["transformers", "onnx-community/Qwen2.5-0.5B-Instruct"], ["webllm", "Qwen2.5-0.5B-Instruct-q4f16_1-MLC"]]) if (modelFor(provider, model)?.recommendedProfile.maxNewTokens !== 256) throw new Error("Catalog model profile is missing.");
+test("catalog exposes lightweight and powerful Qwen models with download estimates", () => {
+  for (const [provider, models] of [["transformers", ["onnx-community/Qwen2.5-0.5B-Instruct", "onnx-community/Qwen2.5-1.5B-Instruct"]], ["webllm", ["Qwen2.5-0.5B-Instruct-q4f16_1-MLC", "Qwen2.5-1.5B-Instruct-q4f16_1-MLC"]]]) {
+    if (modelsFor(provider).length !== 2) throw new Error(`${provider} must offer exactly two models.`);
+    for (const modelId of models) {
+      const model = modelFor(provider, modelId);
+      if (model?.recommendedProfile.maxNewTokens !== 256 || !model.downloadMiB || !model.tier) throw new Error("Catalog model metadata is missing.");
+      if (!modelOptionLabel(model).includes(`approx. ${model.downloadMiB.toLocaleString()} MiB`)) throw new Error("Dropdown label must include the approximate download size.");
+    }
+  }
 });
 
 test("Provider Models reject duplicates and removal closes dependent conversations", () => {
@@ -36,10 +41,17 @@ test("saved Provider Models restore as needing preparation while conversations r
   if (!storage.getItem(storageKey)) throw new Error("State was not saved.");
 });
 
+test("catalog upgrades clear saved Provider Models and conversations", () => {
+  const storage = memoryStorage();
+  storage.setItem(storageKey, JSON.stringify({ providerModels: [{ id: "legacy" }], conversations: [{ id: "legacy-chat" }], activeConversationId: "legacy-chat", catalogVersion: catalogVersion - 1 }));
+  const restored = restoreState(storage);
+  if (restored.providerModels.length || restored.conversations.length || restored.activeConversationId || restored.view !== "chat") throw new Error("Catalog upgrades must start with no saved configurations or conversations.");
+});
+
 test("generation profiles preserve valid model-specific overrides and discard invalid values", () => {
   const storage = memoryStorage();
   const key = providerModelKey("transformers", "onnx-community/Qwen2.5-0.5B-Instruct");
-  storage.setItem(storageKey, JSON.stringify({ providerModels: [], conversations: [], generationProfiles: { [key]: { temperature: 0.45, topP: 2 } } }));
+  storage.setItem(storageKey, JSON.stringify({ catalogVersion, providerModels: [], conversations: [], generationProfiles: { [key]: { temperature: 0.45, topP: 2 } } }));
   const restored = restoreState(storage);
   const profile = effectiveGenerationProfile("transformers", "onnx-community/Qwen2.5-0.5B-Instruct", restored.generationProfiles[key]);
   if (profile.temperature !== 0.45 || profile.topP !== 0.8) throw new Error("Invalid or cross-model generation settings were not resolved safely.");
@@ -72,10 +84,10 @@ test("workspace declares the required accessible chat behavior", async () => {
   for (const text of ["<title>Free Browser AI</title>", 'id="content_layer"', 'id="ui_layer"']) if (!page.includes(text)) throw new Error(`Missing page shell: ${text}`);
   for (const role of ["corner_top_left", "corner_top_right", "corner_bottom_left", "corner_bottom_right"]) if (!app.includes(`corner ${role}`)) throw new Error(`Missing ${role} corner.`);
   for (const text of ["About", "Provider Models", "Add Conversation", "Submit (Enter)", "Shift+Enter adds a new line", "Retry original prompt", "clipboard.writeText", "Reset local workspace", "role=\"tablist\"", "<RichContent>{message.content}</RichContent>"]) if (!app.includes(text)) throw new Error(`Missing workspace behavior: ${text}`);
-  for (const dependency of ["transformers.worker.js", "webllm.worker.js", "@mlc-ai/web-llm", "CreateWebWorkerMLCEngine", "navigator.gpu", "webLlmModelDownloadMiB", "interruptGenerate"]) if (!adapters.includes(dependency)) throw new Error(`Missing runtime adapter behavior: ${dependency}`);
+  for (const dependency of ["transformers.worker.js", "webllm.worker.js", "@mlc-ai/web-llm", "CreateWebWorkerMLCEngine", "navigator.gpu", "modelFor(provider, modelId)", "interruptGenerate"]) if (!adapters.includes(dependency)) throw new Error(`Missing runtime adapter behavior: ${dependency}`);
   if (!transformerWorker.includes("qwenChatTemplate") || !transformerWorker.includes("repetition_penalty")) throw new Error("Transformers.js must apply the Qwen chat template and generation profile.");
-  for (const text of ["Generation", "Temperature", "Top P", "Repetition penalty", "Response length", "Restore recommended settings", "type=\"range\""]) if (!app.includes(text)) throw new Error(`Missing generation settings behavior: ${text}`);
+  for (const text of ["Generation", "Temperature", "Top P", "Repetition penalty", "Response length", "Restore recommended settings", "type=\"range\"", "modelOptionLabel(item)"]) if (!app.includes(text)) throw new Error(`Missing generation settings behavior: ${text}`);
   for (const text of ["top_p", "repetition_penalty", "max_tokens"]) if (!adapters.includes(text)) throw new Error(`WebLLM generation profile was not mapped: ${text}`);
   if (!styles.includes("@media (max-width: 600px)")) throw new Error("The workspace needs a narrow viewport layout.");
-  for (const text of ["workspace_header", "workspace_footer", "--workspace-gutter", "--workspace-gap", "flex: 1; min-height: 0", ".chat_panel { display: flex; flex: 1"]) if (!app.includes(text) && !styles.includes(text)) throw new Error(`Missing responsive workspace layout: ${text}`);
+  for (const text of ["top_navigation", "workspace_brand", "workspace_footer", "--workspace-gutter", "--workspace-gap", "flex: 1; min-height: 0", ".chat_panel { display: flex; flex: 1"]) if (!app.includes(text) && !styles.includes(text)) throw new Error(`Missing responsive workspace layout: ${text}`);
 });
