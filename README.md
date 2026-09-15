@@ -1,15 +1,15 @@
-<!-- AI: Keep commands rooted at the repository. The Vite application, source, tests, and build output belong in react-trading-simulator-runtime-agent/. -->
-# React Trading Simulator Runtime Agent
+<!-- AI: Keep commands rooted at the repository. The Vite application, source, tests, and build output belong in free-browser-ai/. -->
+# Free Browser AI
 
-An interactive React and Vite runtime shell for developing trading-simulation workflows. It includes project metadata, version display, and a fullscreen control while trading features are developed.
+A private, browser-only chat workspace for comparing Transformers.js and WebLLM. Conversations, inference, and settings stay on the device; no account, API key, or application backend is required.
 
 ## Screenshot
 
-![React Trading Simulator Runtime Agent](react-trading-simulator-runtime-agent/documentation/screenshot01.png)
+![Free Browser AI](free-browser-ai/documentation/screenshot01.png)
 
 ## Live Demo
 
-- [React Trading Simulator Runtime Agent](https://samuelasherrivello.github.io/react-trading-simulator-runtime-agent/)
+- [Free Browser AI](https://samuelasherrivello.github.io/free-browser-ai/)
 
 ## Table of Contents
 
@@ -43,13 +43,13 @@ Requires Node.js 24 and npm.
 
 ## Project Details
 
-The application is a Vite-powered React single-page app. The repository root holds package configuration and workflows; the application directory contains the browser entry point, components, styles, tests, and documentation assets.
+The application is a Vite-powered React single-page app. The repository root holds package configuration and workflows; `free-browser-ai/` contains the browser entry point, components, styles, tests, build output, and documentation assets.
 
 ### 📝 Structure
 
-- `react-trading-simulator-runtime-agent/index.html` provides the plain safe-area HTML shell.
-- `react-trading-simulator-runtime-agent/test/` contains focused automated checks for the runtime shell.
-- `react-trading-simulator-runtime-agent/documentation/` contains canonical README images and project
+- `free-browser-ai/index.html` provides the browser application shell.
+- `free-browser-ai/test/` contains focused automated checks.
+- `free-browser-ai/documentation/` contains canonical README images and project
   documentation assets.
 
 ### 📦 AI
@@ -62,6 +62,14 @@ The application is a Vite-powered React single-page app. The repository root hol
 ### 📦 Packages
 
 - [Vite](https://vite.dev/) provides local development and production builds.
+- [Transformers.js](https://huggingface.co/docs/transformers.js/) provides the ONNX/WASM local inference path.
+- [WebLLM](https://webllm.mlc.ai/) provides the WebGPU local inference path.
+
+### 📦 Runtime Notes
+
+- Conversations and settings persist only in browser local storage. Reset clears app-managed data and refreshes the page; downloaded model caches can remain.
+- WebLLM requires a WebGPU-capable browser. Transformers.js remains separately available without WebGPU.
+- The selected models, public sources, licenses, browser requirements, and dependency-audit limitation are documented in [the runtime matrix](free-browser-ai/documentation/runtime-matrix.md).
 
 
 ## Credits

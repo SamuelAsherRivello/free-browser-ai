@@ -2,7 +2,7 @@
 
 # Node and Vite output.
 node_modules/
-/react-trading-simulator-runtime-agent/dist/
+/free-browser-ai/dist/
 
 # Local configuration. Commit examples only, never credentials.
 .env

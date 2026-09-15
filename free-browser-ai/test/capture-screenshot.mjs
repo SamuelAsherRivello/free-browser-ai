@@ -3,7 +3,7 @@ import { once } from "node:events";
 import { chromium } from "playwright";
 
 const port = 4173;
-const previewUrl = `http://127.0.0.1:${port}/react-trading-simulator-runtime-agent/`;
+const previewUrl = `http://127.0.0.1:${port}/free-browser-ai/`;
 const preview = spawn(process.execPath, ["node_modules/vite/bin/vite.js", "preview", "--host", "127.0.0.1", "--port", String(port)], {
   stdio: "ignore",
 });
@@ -26,7 +26,7 @@ try {
   const browser = await chromium.launch();
   const page = await browser.newPage({ viewport: { width: 1440, height: 900 }, deviceScaleFactor: 1 });
   await page.goto(previewUrl, { waitUntil: "networkidle" });
-  await page.screenshot({ path: "react-trading-simulator-runtime-agent/documentation/screenshot01.png", fullPage: true });
+  await page.screenshot({ path: "free-browser-ai/documentation/screenshot01.png", fullPage: true });
   await browser.close();
 } finally {
   preview.kill();

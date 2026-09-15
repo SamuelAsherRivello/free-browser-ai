@@ -1,17 +1,19 @@
 {
-  "name": "react-trading-simulator-runtime-agent",
+  "name": "free-browser-ai",
   "private": true,
   "type": "module",
   "scripts": {
     "dev": "vite",
     "build": "vite build",
     "preview": "vite preview",
-    "capture:screenshot": "node react-trading-simulator-runtime-agent/test/capture-screenshot.mjs",
+    "capture:screenshot": "node free-browser-ai/test/capture-screenshot.mjs",
     "pw": "playwright-cli",
     "pw:help": "playwright-cli --help",
-    "test": "node --test --test-isolation=none react-trading-simulator-runtime-agent/test/page.test.mjs"
+    "test": "node --test --test-isolation=none free-browser-ai/test/page.test.mjs"
   },
   "dependencies": {
+    "@huggingface/transformers": "^4.2.0",
+    "@mlc-ai/web-llm": "^0.2.85",
     "@vitejs/plugin-react": "^6.1.1",
     "react": "^19.3.0",
     "react-dom": "^19.3.0"

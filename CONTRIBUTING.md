@@ -6,7 +6,7 @@ Thank you for improving this project.
 
 Review `README.md`, `AGENTS.md`, and the project's actual configuration first.
 For the baseline, the repository root holds the npm dependencies and project
-commands; application files live in `react-trading-simulator-runtime-agent/`. Keep repository metadata
+commands; application files live in `free-browser-ai/`. Keep repository metadata
 at the root.
 
 For a substantial feature or behavior change, use the configured OpenSpec
