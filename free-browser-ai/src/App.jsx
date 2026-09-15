@@ -1,7 +1,8 @@
 import { useEffect, useRef, useState } from "react";
 import versionText from "../../version.txt?raw";
 import { prepareAdapter } from "./adapters.js";
-import { modelFor, modelsFor, providers } from "./catalog.js";
+import { effectiveGenerationProfile, generationProfileLimits, modelFor, modelOptionLabel, modelsFor, providerModelKey, providers } from "./catalog.js";
+import { RichContent } from "./rich-content.js";
 import { addProviderModel, makeId, removeProviderModel, restoreState, saveState, storageKey } from "./state.js";
 
 const repositoryUrl = "https://github.com/SamuelAsherRivello/free-browser-ai";
@@ -30,6 +31,7 @@ function CopyIcon() {
 export function App() {
   const initial = useRef(restoreState()).current;
   const [providerModels, setProviderModels] = useState(initial.providerModels);
+  const [generationProfiles, setGenerationProfiles] = useState(initial.generationProfiles);
   const [conversations, setConversations] = useState(initial.conversations);
   const [activeConversationId, setActiveConversationId] = useState(initial.activeConversationId);
   const [view, setView] = useState(initial.view);
@@ -46,15 +48,16 @@ export function App() {
   const activeConversation = conversations.find((item) => item.id === activeConversationId);
   const availableModels = providerModels.filter((item) => item.status !== "loading");
 
-  useEffect(() => saveState({ providerModels, conversations, activeConversationId, view }), [providerModels, conversations, activeConversationId, view]);
+  useEffect(() => saveState({ providerModels, conversations, activeConversationId, view, generationProfiles }), [providerModels, conversations, activeConversationId, view, generationProfiles]);
   useEffect(() => () => { adapters.current.forEach((adapter) => adapter.release()); preparations.current.forEach((controller) => controller.abort()); }, []);
   const updateProviderModel = (id, update) => setProviderModels((items) => items.map((item) => item.id === id ? update(item) : item));
   const updateConversation = (id, update) => setConversations((items) => items.map((item) => item.id === id ? update(item) : item));
+  const updateGenerationProfile = (providerId, modelId, name, value) => setGenerationProfiles((profiles) => ({ ...profiles, [providerModelKey(providerId, modelId)]: { ...profiles[providerModelKey(providerId, modelId)], [name]: value } }));
+  const restoreGenerationProfile = (providerId, modelId) => setGenerationProfiles((profiles) => { const next = { ...profiles }; delete next[providerModelKey(providerId, modelId)]; return next; });
 
   const prepare = async (configuration) => {
     preparations.current.get(configuration.id)?.abort(new Error("Preparation restarted."));
     const controller = new AbortController();
-    const timeout = setTimeout(() => controller.abort(new Error("Preparation timed out after two minutes. Check WebGPU support and your network, then retry.")), 120000);
     preparations.current.set(configuration.id, controller);
     for (const [id, adapter] of adapters.current) {
       if (id !== configuration.id) {
@@ -76,7 +79,6 @@ export function App() {
       updateProviderModel(configuration.id, (item) => ({ ...item, status: "failed", error: message, progress: "Preparation failed", progressPercent: null, startedAt: null }));
       throw error;
     } finally {
-      clearTimeout(timeout);
       if (preparations.current.get(configuration.id) === controller) preparations.current.delete(configuration.id);
     }
   };
@@ -100,7 +102,7 @@ export function App() {
 
   const createConversation = () => {
     if (!selectedConfiguration) return;
-    const conversation = { id: makeId(), title: `Conversation ${conversations.length + 1}`, providerModelId: selectedConfiguration, messages: [], status: "ready", phase: "", startedAt: null, error: "", retryPrompt: "" };
+    const conversation = { id: makeId(), title: `Conversation ${conversations.length + 1}`, providerModelId: selectedConfiguration, messages: [{ id: makeId(), role: "assistant", content: "Type your prompt below", isWelcome: true }], status: "ready", phase: "", startedAt: null, error: "", retryPrompt: "" };
     setConversations((items) => [...items, conversation]);
     setActiveConversationId(conversation.id);
     setAddingConversation(false);
@@ -118,7 +120,7 @@ export function App() {
     if (!conversation || !configuration || !submittedPrompt.trim() || conversation.status === "loading") return;
     const user = { id: makeId(), role: "user", content: submittedPrompt.trim() };
     const assistant = { id: makeId(), role: "assistant", content: "" };
-    const history = [...conversation.messages, user];
+    const history = [...conversation.messages.filter((message) => !message.isWelcome), user];
     updateConversation(conversation.id, (item) => ({ ...item, messages: [...history, assistant], status: "loading", phase: "Assistant is thinking...", startedAt: Date.now(), error: "", retryPrompt: user.content }));
     setPrompt("");
     try {
@@ -129,7 +131,9 @@ export function App() {
         adapter = await prepare(configuration);
       }
       updateConversation(conversation.id, (item) => ({ ...item, phase: "Generating response..." }));
-      const { task, cancel } = await adapter.generate(history.map(({ role, content }) => ({ role, content })), (piece) => updateConversation(conversation.id, (item) => ({ ...item, phase: "Generating response...", messages: item.messages.map((message) => message.id === assistant.id ? { ...message, content: message.content + piece } : message) })));
+      const profile = effectiveGenerationProfile(configuration.provider, configuration.model, generationProfiles[providerModelKey(configuration.provider, configuration.model)]);
+      if (!profile) throw new Error("This Provider Model is no longer supported. Select a current model in Settings.");
+      const { task, cancel } = await adapter.generate(history.map(({ role, content }) => ({ role, content })), profile, (piece) => updateConversation(conversation.id, (item) => ({ ...item, phase: "Generating response...", messages: item.messages.map((message) => message.id === assistant.id ? { ...message, content: message.content + piece } : message) })));
       cancellations.current.set(conversation.id, cancel);
       await task;
       updateConversation(conversation.id, (item) => ({ ...item, status: "ready", phase: "", startedAt: null, error: "" }));
@@ -149,19 +153,27 @@ export function App() {
   const version = versionText.trim().replace(/^version=/, "").replace(/^v/, "");
 
   return <main className="workspace" aria-label="Free Browser AI chat workspace">
-    <nav className="top_navigation" aria-label="Workspace"><button type="button" title="Open project overview" aria-current={view === "about" ? "page" : undefined} onClick={() => setView("about")}>About</button><button type="button" title="Open workspace settings" aria-current={view === "settings" ? "page" : undefined} onClick={() => setView("settings")}>Settings</button><button type="button" title="Open workspace chat" aria-current={view === "chat" ? "page" : undefined} onClick={() => setView("chat")}>Chat</button></nav>
-    {view === "about" ? <About /> : view === "settings" ? <Settings provider={provider} model={model} providerModels={providerModels} error={settingsError} onProvider={changeProvider} onModel={setModel} onAdd={addConfiguration} onPrepare={prepare} onRemove={removeConfiguration} onReset={reset} /> : <Chat adding={addingConversation} setAdding={setAddingConversation} selected={selectedConfiguration} setSelected={setSelectedConfiguration} configurations={providerModels} conversations={conversations} active={activeConversation} setActive={setActiveConversationId} onCreate={createConversation} onClose={closeConversation} prompt={prompt} setPrompt={setPrompt} onSend={send} onStop={stop} onCopy={copyText} />}
+    <nav className="top_navigation" aria-label="Workspace"><div className="top_navigation_tabs"><button type="button" title="Open project overview" aria-current={view === "about" ? "page" : undefined} onClick={() => setView("about")}>About</button><button type="button" title="Open workspace settings" aria-current={view === "settings" ? "page" : undefined} onClick={() => setView("settings")}>Settings</button><button type="button" title="Open workspace chat" aria-current={view === "chat" ? "page" : undefined} onClick={() => setView("chat")}>Chat</button></div><div className="workspace_brand"><span className="corner_title">Free Browser AI</span><a href={repositoryUrl} aria-label="Free Browser AI project on GitHub"><GitHubMark /></a></div></nav>
+    {view === "about" ? <About /> : view === "settings" ? <Settings provider={provider} model={model} providerModels={providerModels} generationProfiles={generationProfiles} error={settingsError} onProvider={changeProvider} onModel={setModel} onAdd={addConfiguration} onPrepare={prepare} onRemove={removeConfiguration} onGenerationChange={updateGenerationProfile} onRestoreGeneration={restoreGenerationProfile} onReset={reset} /> : <Chat adding={addingConversation} setAdding={setAddingConversation} selected={selectedConfiguration} setSelected={setSelectedConfiguration} configurations={providerModels} conversations={conversations} active={activeConversation} setActive={setActiveConversationId} onCreate={createConversation} onClose={closeConversation} prompt={prompt} setPrompt={setPrompt} onSend={send} onStop={stop} onCopy={copyText} />}
     {copyFeedback && <p className="copy_feedback" role="status">{copyFeedback}</p>}
-    <div className="corner corner_top_left"><span className="corner_title">Free Browser AI</span></div><div className="corner corner_top_right"><a href={repositoryUrl} aria-label="Free Browser AI project on GitHub"><GitHubMark /></a></div><div className="corner corner_bottom_right"><span className="corner_body">v{version}</span></div><div className="corner corner_bottom_left" aria-hidden="true" />
+    <footer className="workspace_footer"><div className="corner corner_bottom_left" aria-hidden="true" /><div className="corner corner_bottom_right"><span className="corner_body">v{version}</span></div></footer>
   </main>;
 }
 
 function About() {
-  return <section className="panel settings_panel" aria-labelledby="about-title"><h1 id="about-title">About</h1><p>Free Browser AI is a privacy-first local chat workspace for experimenting with small language models directly in the browser. It keeps conversations on your device, lets you compare browser runtimes, prepares models only when needed, and offers lightweight controls for managing provider models without needing a hosted backend or cloud account.</p><ul className="about_list"><li>Runs model inference locally in supported browsers.</li><li>Supports Transformers.js and WebLLM provider models.</li><li>Stores conversations and settings in local browser storage.</li><li>Provides per-conversation tabs with copy, stop, and retry controls.</li><li>Designed for static hosting without a server backend.</li></ul></section>;
+  return <section className="panel settings_panel" aria-labelledby="about-title"><h1 id="about-title">About</h1><p>Free Browser AI is a privacy-first local chat workspace for experimenting with small language models directly in your browser. It keeps conversations on your device, lets you compare <a href="https://huggingface.co/docs/transformers.js/">Transformers.js</a> and <a href="https://webllm.mlc.ai/">WebLLM</a> runtimes, prepares models only when needed, and offers controls for managing provider models without a backend or cloud account.</p><h2 className="about_heading">Benefits</h2><ul className="about_list"><li>Runs model inference locally in supported browsers.</li><li>Keeps conversations and settings in local browser storage.</li><li>Lets you compare Transformers.js and WebLLM provider models.</li></ul><h2 className="about_heading">Drawbacks</h2><ul className="about_list"><li>Models must download before their first use.</li><li>WebLLM needs a compatible WebGPU-enabled browser.</li></ul></section>;
 }
 
-function Settings({ provider, model, providerModels, error, onProvider, onModel, onAdd, onPrepare, onRemove, onReset }) {
-  return <section className="panel settings_panel" aria-labelledby="settings-title"><h1 id="settings-title">Provider Models</h1><p>Models prepare on the first prompt, keeping browser memory free until needed.</p><div className="configuration_form"><label>Provider<select value={provider} onChange={(event) => onProvider(event.target.value)}>{Object.entries(providers).map(([id, item]) => <option key={id} value={id}>{item.label}</option>)}</select></label><label>Model<select value={model} onChange={(event) => onModel(event.target.value)}>{modelsFor(provider).map((item) => <option key={item.id} value={item.id}>{item.label}</option>)}</select></label><button type="button" title="Add selected provider model" className="primary_button" onClick={onAdd}>Add Provider Model</button></div>{error && <p className="error" role="alert">{error}</p>}<div className="configuration_list">{providerModels.length === 0 ? <p>No Provider Models configured.</p> : providerModels.map((item) => <article className="configuration" key={item.id}><div><strong>{labelFor(item)}</strong><PreparationStatus item={item} />{item.status === "loading" && <PreparationProgress percent={item.progressPercent} />}{item.error && <p className="error" role="alert">{item.error}</p>}</div><div>{item.status !== "loading" && <button type="button" title="Prepare this provider model" onClick={() => void onPrepare(item)}>Prepare</button>}<button type="button" title="Remove this provider model" onClick={() => onRemove(item.id)}>Remove</button></div></article>)}</div><section className="reset_section" aria-labelledby="reset-title"><h2 id="reset-title">Local Workspace</h2><p>Remove saved conversations and Provider Models, then reload this page. Model files cached by browser runtimes may remain.</p><button type="button" title="Reset local workspace data" className="reset_button" onClick={onReset}>Reset local workspace</button></section></section>;
+function Settings({ provider, model, providerModels, generationProfiles, error, onProvider, onModel, onAdd, onPrepare, onRemove, onGenerationChange, onRestoreGeneration, onReset }) {
+  const profile = effectiveGenerationProfile(provider, model, generationProfiles[providerModelKey(provider, model)]);
+  const hasOverrides = Object.keys(generationProfiles[providerModelKey(provider, model)] || {}).length > 0;
+  return <section className="panel settings_panel" aria-labelledby="settings-title"><h1 id="settings-title">Settings</h1><h2 className="settings_subheading">Provider Models</h2><p>Models prepare on the first prompt, keeping browser memory free until needed.</p><div className="configuration_form"><label>Provider<select value={provider} onChange={(event) => onProvider(event.target.value)}>{Object.entries(providers).map(([id, item]) => <option key={id} value={id}>{item.label}</option>)}</select></label><label>Model<select value={model} onChange={(event) => onModel(event.target.value)}>{modelsFor(provider).map((item) => <option key={item.id} value={item.id}>{modelOptionLabel(item)}</option>)}</select></label><button type="button" title="Add selected provider model" className="primary_button" onClick={onAdd}>Add Provider Model</button></div>{error && <p className="error" role="alert">{error}</p>}<div className="configuration_list">{providerModels.length === 0 ? <p>No Provider Models configured.</p> : providerModels.map((item) => <article className="configuration" key={item.id}><div><strong>{labelFor(item)}</strong><PreparationStatus item={item} />{item.status === "loading" && <PreparationProgress percent={item.progressPercent} />}{item.error && <p className="error" role="alert">{item.error}</p>}</div><div>{item.status !== "loading" && <button type="button" title="Prepare this provider model" onClick={() => void onPrepare(item)}>Prepare</button>}<button type="button" title="Remove this provider model" onClick={() => onRemove(item.id)}>Remove</button></div></article>)}</div><GenerationSettings profile={profile} provider={provider} model={model} hasOverrides={hasOverrides} onChange={onGenerationChange} onRestore={onRestoreGeneration} /><section className="reset_section" aria-labelledby="reset-title"><h2 id="reset-title">Persistence</h2><p>Remove saved conversations, Provider Models, and generation settings, then reload this page. Model files cached by browser runtimes may remain.</p><button type="button" title="Reset local workspace data" className="reset_button" onClick={onReset}>Reset local workspace</button></section></section>;
+}
+
+function GenerationSettings({ profile, provider, model, hasOverrides, onChange, onRestore }) {
+  if (!profile) return null;
+  const controls = [{ name: "temperature", label: "Temperature", help: "Lower values keep responses focused; higher values add variety." }, { name: "topP", label: "Top P", help: "Limits choices to the most likely words." }, { name: "repetitionPenalty", label: "Repetition penalty", help: "Higher values discourage repeated phrases." }, { name: "maxNewTokens", label: "Response length", help: "Limits the number of generated response tokens." }];
+  return <section className="generation_section" aria-labelledby="generation-title"><div><h2 id="generation-title">Generation</h2><p>{hasOverrides ? "Using custom settings for" : "Using recommended settings for"} {modelFor(provider, model)?.label}.</p></div><div className="generation_controls">{controls.map(({ name, label, help }) => { const limit = generationProfileLimits[name]; return <label key={name} className="generation_control"><span>{label} <output>{profile[name]}</output></span><input type="range" min={limit.min} max={limit.max} step={limit.step} value={profile[name]} aria-describedby={`${name}-help`} onChange={(event) => onChange(provider, model, name, Number(event.target.value))} /><small id={`${name}-help`}>{help} Range {limit.min} to {limit.max}.</small></label>; })}</div><button type="button" onClick={() => onRestore(provider, model)}>Restore recommended settings</button></section>;
 }
 
 function PreparationStatus({ item }) {
@@ -194,7 +206,7 @@ function Conversation({ conversation, configuration, prompt, setPrompt, onSend, 
     window.addEventListener("keydown", handleKeyDown);
     return () => window.removeEventListener("keydown", handleKeyDown);
   }, [conversation.status, onStop]);
-  return <section className="conversation" aria-label={conversation.title}><div className="model_label" title={configuration?.model ?? "Removed Provider Model"}><strong>Provider Model</strong><span>{configuration ? chatModelLabelFor(configuration) : "Removed Provider Model"}</span></div><div className="transcript" aria-live="polite">{conversation.messages.map((message) => <article className={`message ${message.role}`} key={message.id}><div><strong>{message.role === "user" ? "You" : "Assistant"}</strong><p>{message.content}</p></div><button type="button" className="copy_button" aria-label={`Copy ${message.role} message`} title="Copy message to clipboard" onClick={() => onCopy(message.content)}><CopyIcon /></button></article>)}</div>{conversation.status === "loading" && <ThinkingStatus conversation={conversation} />}{conversation.error && <p className="error" role="alert">{conversation.error}</p>}{conversation.status === "stopped" && conversation.retryPrompt && <button type="button" title="Retry the original prompt" onClick={() => submit(conversation.retryPrompt)}>Retry original prompt</button>}<form className="prompt_form" onSubmit={(event) => { event.preventDefault(); submit(); }}><p className="prompt_hint">Shift+Enter adds a new line.</p><label>Prompt<textarea value={prompt} disabled={!canSubmit} onChange={(event) => setPrompt(event.target.value)} onKeyDown={(event) => { if (event.key === "Enter" && !event.shiftKey) { event.preventDefault(); submit(event.currentTarget.value); } }} /></label><div><button type="submit" title="Send prompt to model" className="primary_button" disabled={!canSubmit || !prompt.trim()}>{conversation.status === "loading" ? "Submitting..." : "Submit (Enter)"}</button>{conversation.status === "loading" && <button type="button" title="Stop current response generation" onClick={onStop}>Stop (Esc)</button>}</div>{!configuration ? <p className="error">This Provider Model was removed.</p> : null}</form></section>;
+  return <section className="conversation" aria-label={conversation.title}><div className="model_label" title={configuration?.model ?? "Removed Provider Model"}><strong>Provider Model</strong><span>{configuration ? chatModelLabelFor(configuration) : "Removed Provider Model"}</span></div><div className="transcript" aria-live="polite">{conversation.messages.map((message) => { const isPending = message.role === "assistant" && !message.content && conversation.status === "loading"; return <article className={`message ${message.role}`} key={message.id}><div><strong>{message.role === "user" ? "You" : "Assistant"}</strong>{isPending ? <ThinkingStatus conversation={conversation} /> : <RichContent>{message.content}</RichContent>}</div><button type="button" className="copy_button" aria-label={`Copy ${message.role} message`} title="Copy message to clipboard" onClick={() => onCopy(message.content)}><CopyIcon /></button></article>; })}</div>{conversation.error && <p className="error" role="alert">{conversation.error}</p>}{conversation.status === "stopped" && conversation.retryPrompt && <button type="button" title="Retry the original prompt" onClick={() => submit(conversation.retryPrompt)}>Retry original prompt</button>}<form className="prompt_form" onSubmit={(event) => { event.preventDefault(); submit(); }}><label>Prompt<textarea value={prompt} disabled={!canSubmit} onChange={(event) => setPrompt(event.target.value)} onKeyDown={(event) => { if (event.key === "Enter" && !event.shiftKey) { event.preventDefault(); submit(event.currentTarget.value); } }} /></label><p className="prompt_hint">Shift+Enter adds a new line.</p><div><button type="submit" title="Send prompt to model" className="primary_button" disabled={!canSubmit || !prompt.trim()}>{conversation.status === "loading" ? "Submitting..." : "Submit (Enter)"}</button>{conversation.status === "loading" && <button type="button" title="Stop current response generation" onClick={onStop}>Stop (Esc)</button>}</div>{!configuration ? <p className="error">This Provider Model was removed.</p> : null}</form></section>;
 }
 
 function ThinkingStatus({ conversation }) {

@@ -15,6 +15,10 @@ The packages and models were selected for their documented browser chat support 
 - The WebLLM model ID is included in WebLLM's prebuilt configuration and uses the provider's WebGPU execution path.
 - Manual runtime validation requires a WebGPU-capable browser for WebLLM and a non-WebGPU browser for its unavailability path.
 
+## Generation Profiles
+
+Both Qwen2.5 0.5B Instruct entries use the same recommended profile: temperature `0.7`, top-p `0.8`, repetition penalty `1.05`, and a 256-token response limit. The Qwen model card documents the instruction-tuned 0.5B model and its chat-template use; the installed Transformers.js and WebLLM contracts support these sampling options. Users can override these values per Provider Model in Settings and restore the recommendation at any time.
+
 ## Dependency Audit
 
 `npm audit` currently reports four high-severity findings without an upstream fix in optional Node-side `onnxruntime-node` and `sharp` dependencies pulled by `@huggingface/transformers`. Free Browser AI dynamically imports its browser runtime and does not use those Node-side packages in the browser bundle. The known limitation was accepted for this release and must be re-evaluated when upgrading dependencies.

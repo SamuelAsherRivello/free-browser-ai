@@ -1,5 +1,6 @@
 let generator;
 let stopper;
+const qwenChatTemplate = "{% for message in messages %}{{ '<|im_start|>' + message['role'] + '\n' + message['content'] + '<|im_end|>\n' }}{% endfor %}{% if add_generation_prompt %}{{ '<|im_start|>assistant\n' }}{% endif %}";
 
 self.onmessage = async ({ data }) => {
   try {
@@ -17,7 +18,7 @@ self.onmessage = async ({ data }) => {
       const { TextStreamer, InterruptableStoppingCriteria } = await import("@huggingface/transformers");
       stopper = new InterruptableStoppingCriteria();
       const streamer = new TextStreamer(generator.tokenizer, { skip_prompt: true, callback_function: (text) => self.postMessage({ type: "token", text }) });
-      await generator(data.messages, { max_new_tokens: 512, do_sample: true, temperature: 0.7, streamer, stopping_criteria: stopper });
+      await generator(data.messages, { max_new_tokens: data.profile.maxNewTokens, do_sample: true, temperature: data.profile.temperature, top_p: data.profile.topP, repetition_penalty: data.profile.repetitionPenalty, streamer, stopping_criteria: stopper, chat_template: qwenChatTemplate });
       self.postMessage({ type: "complete" });
       return;
     }

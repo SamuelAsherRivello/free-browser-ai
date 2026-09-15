@@ -49,3 +49,11 @@ The default HTML template uses four reusable `corner` instances inside
 
 Correct: run `git status`, dependency, build, test, and run commands from the
 repository root; keep the application's source and tests under `free-browser-ai/`.
+
+## Agent execution discipline
+
+- Time-box investigation to the minimum needed to identify an actionable fix.
+  Apply the fix or report a concrete blocker; never leave a task in passive
+  investigation while the user waits.
+- Use browser automation only to reproduce a specific behavior, and immediately
+  convert the result into a code change or a concise finding.

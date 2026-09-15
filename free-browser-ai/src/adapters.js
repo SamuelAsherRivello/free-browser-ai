@@ -1,3 +1,5 @@
+import { modelFor } from "./catalog.js";
+
 function transformerAdapter(modelId, onProgress, signal) {
   const worker = new Worker(new URL("./transformers.worker.js", import.meta.url), { type: "module" });
   let prepared;
@@ -14,8 +16,8 @@ function transformerAdapter(modelId, onProgress, signal) {
     async prepare() {
       await new Promise((resolve, reject) => { prepared = { resolve, reject }; worker.postMessage({ type: "prepare", modelId }); });
     },
-    generate(messages, onToken) {
-      const task = new Promise((resolve, reject) => { generate = { resolve, reject, onToken }; worker.postMessage({ type: "generate", messages }); });
+    generate(messages, profile, onToken) {
+      const task = new Promise((resolve, reject) => { generate = { resolve, reject, onToken }; worker.postMessage({ type: "generate", messages, profile }); });
       return { task, cancel: () => worker.postMessage({ type: "cancel" }) };
     },
     release() { worker.postMessage({ type: "release" }); worker.terminate(); },
@@ -36,15 +38,31 @@ export async function prepareAdapter(provider, modelId, onProgress, signal) {
 
   if (provider === "webllm") {
     if (!navigator.gpu) throw new Error("WebLLM requires WebGPU, which is unavailable in this browser.");
-    const [{ CreateWebWorkerMLCEngine }, worker] = await Promise.all([
+    onProgress("Checking WebGPU support...");
+    const gpuAdapter = await navigator.gpu.requestAdapter();
+    if (!gpuAdapter) throw new Error("WebLLM could not access a WebGPU adapter. Enable hardware acceleration, then retry.");
+    const [{ CreateWebWorkerMLCEngine, prebuiltAppConfig }, worker] = await Promise.all([
       import("@mlc-ai/web-llm"),
       new Worker(new URL("./webllm.worker.js", import.meta.url), { type: "module" }),
     ]);
     try {
-      const engine = await abortable(CreateWebWorkerMLCEngine(worker, modelId, { initProgressCallback: (report) => onProgress(report.text || "Preparing WebLLM...", report.progress * 100) }), signal, () => worker.terminate());
+      const model = prebuiltAppConfig.model_list.find((item) => item.model_id === modelId);
+      const missingFeature = model?.required_features?.find((feature) => !gpuAdapter.features.has(feature));
+      if (missingFeature) throw new Error(`WebLLM requires the WebGPU feature ${missingFeature}, which this device does not support.`);
+      const downloadSize = modelFor(provider, modelId)?.downloadMiB;
+      onProgress(`Downloading WebLLM model files${downloadSize ? ` (up to ${downloadSize} MiB)` : ""}...`, 0);
+      const workerFailure = new Promise((_, reject) => {
+        worker.onerror = (event) => reject(new Error(`WebLLM worker failed: ${event.message || "unknown error"}`));
+        worker.onmessageerror = () => reject(new Error("WebLLM worker returned an unreadable message."));
+      });
+      const engine = await abortable(Promise.race([CreateWebWorkerMLCEngine(worker, modelId, { initProgressCallback: (report) => {
+        const percent = Math.round(report.progress * 100);
+        const detail = downloadSize ? `${percent}% of setup; model download up to ${downloadSize} MiB` : `${percent}% of setup`;
+        onProgress(`${report.text || "Preparing WebLLM..."} (${detail})`, percent);
+      } }), workerFailure]), signal, () => worker.terminate());
       return {
-        async generate(messages, onToken) {
-          const stream = await engine.chat.completions.create({ messages, stream: true });
+        async generate(messages, profile, onToken) {
+          const stream = await engine.chat.completions.create({ messages, stream: true, temperature: profile.temperature, top_p: profile.topP, repetition_penalty: profile.repetitionPenalty, max_tokens: profile.maxNewTokens });
           return { task: (async () => { for await (const chunk of stream) onToken(chunk.choices[0]?.delta?.content || ""); })(), cancel: () => engine.interruptGenerate() };
         },
         async release() { await engine.unload(); worker.terminate(); },

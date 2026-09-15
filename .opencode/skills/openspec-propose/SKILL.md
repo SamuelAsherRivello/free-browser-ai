@@ -28,18 +28,20 @@ When the user is ready to implement, they must start the apply workflow explicit
 
 **Store selection:** If the user names a store (a store is a standalone OpenSpec repo registered on this machine) or the work lives in one, run `openspec store list --json` to discover registered store ids, then pass `--store <id>` on the commands that read or write specs and changes (`new change`, `status`, `instructions`, `list`, `show`, `validate`, `archive`, `doctor`, `context`, `schemas`, `view`). Once selected, treat `--store <id>` as sticky for the rest of the workflow. Every unscoped example of those commands below is shorthand: before running it, append the flag. For example, run `openspec status --change "<name>" --json --store "<id>"`, not the unscoped form shown below. Other commands do not take the flag. Hints printed by commands already carry the flag; keep it on follow-ups. Without a store, commands act on the nearest local `openspec/` root.
 
-**Input**: The user's request should include a change name (kebab-case) OR a description of what they want to build.
+**Input**: The user's request may include a change name (kebab-case) OR a description of what they want to build. When omitted, continue the most recently named OpenSpec change in the same conversation if one exists.
 
 **Steps**
 
 1. **Understand the request and clarify material ambiguity**
 
-   If no clear input is provided, ask the user (open-ended, no preset options):
+   If no clear input is provided, first reuse the most recently named OpenSpec change from the same conversation. Treat the request as authorization to complete every remaining planning artifact for that change; do not create another change and do not ask the user to repeat the change name.
+
+   Only if no prior change or described work can be identified, ask the user (open-ended, no preset options):
    > "What change do you want to work on? Describe what you want to build or fix."
 
    From their description, derive a kebab-case name (e.g., "add user authentication" → `add-user-auth`).
 
-   **IMPORTANT**: Do NOT proceed without understanding what the user wants to build.
+   **IMPORTANT**: Do NOT proceed without understanding what the user wants to build. A prior named change plus its existing proposal and artifacts provides this context.
 
    If the request contains ambiguity that would materially affect scope, externally observable behavior, compatibility, or acceptance criteria, ask the user before creating the change. For minor details, make a reasonable assumption and record it in the planning artifacts.
 
@@ -76,7 +78,7 @@ When the user is ready to implement, they must start the apply workflow explicit
    ```bash
    openspec new change "<name>" --schema "<schema-name>"
    ```
-   This creates a scaffolded change in the planning home resolved by the CLI with `.openspec.yaml`.
+   This creates a scaffolded change in the planning home resolved by the CLI with `.openspec.yaml`. If the selected change already exists, do not run this command; resume from its `openspec status` artifact graph instead.
 
 5. **Get the artifact build order**
    ```bash
@@ -159,5 +161,5 @@ After completing all artifacts, summarize:
 - Create every artifact the apply phase transitively depends on, not just the ids listed in `apply.requires`
 - Always read dependency artifacts before creating a new one - re-read from disk, not from conversation memory (files may have changed since you last saw them)
 - Ask about ambiguities that would materially change scope, externally observable behavior, compatibility, or acceptance criteria; for minor details, make reasonable assumptions and record them
-- If a change with that name already exists, ask if user wants to continue it or create a new one
+- If the selected change already exists, continue it and create every required missing artifact. Ask only if no prior conversational target exists or the existing change contradicts the user's newly described work.
 - Verify each artifact file exists after writing before proceeding to next

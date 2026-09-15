@@ -14,16 +14,17 @@ Implement tasks from an OpenSpec change.
 
 **Store selection:** If the user names a store (a store is a standalone OpenSpec repo registered on this machine) or the work lives in one, run `openspec store list --json` to discover registered store ids, then pass `--store <id>` on the commands that read or write specs and changes (`new change`, `status`, `instructions`, `list`, `show`, `validate`, `archive`, `doctor`, `context`, `schemas`, `view`). Once selected, treat `--store <id>` as sticky for the rest of the workflow. Every unscoped example of those commands below is shorthand: before running it, append the flag. For example, run `openspec status --change "<name>" --json --store "<id>"`, not the unscoped form shown below. Other commands do not take the flag. Hints printed by commands already carry the flag; keep it on follow-ups. Without a store, commands act on the nearest local `openspec/` root.
 
-**Input**: Optionally specify a change name (e.g., `$openspec-apply-change (Codex) or /openspec-apply-change (other agents) add-auth`). If omitted, check if it can be inferred from conversation context. If vague or ambiguous you MUST prompt for available changes.
+**Input**: Optionally specify a change name (e.g., `$openspec-apply-change (Codex) or /openspec-apply-change (other agents) add-auth`). If omitted, select the OpenSpec proposal or change currently active in the same conversation. This includes a change the user has just asked to create or plan, and takes priority over older mentioned changes. Ask for selection only when no conversational change target exists.
 
 **Steps**
 
 1. **Select the change**
 
    If a name is provided, use it. Otherwise:
-   - Infer from conversation context if the user mentioned a change
-   - Auto-select if only one active change exists
-   - If ambiguous, run `openspec list --json` to get available changes and ask the user to select one
+    - Select the proposal or change currently active in the same conversation, even when other active changes exist
+    - Prefer the latest active planning target over an older named or completed change
+    - Auto-select if only one active change exists and no conversational target exists
+    - Run `openspec list --json` and ask the user only when neither source identifies a change
 
    Always announce: "Using change: <name>" and how to override (e.g., `$openspec-apply-change (Codex) or /openspec-apply-change (other agents) <other>`).
 
@@ -53,7 +54,7 @@ Implement tasks from an OpenSpec change.
    **Handle states:**
    - If `state: "blocked"` (missing artifacts): show message, suggest using `$openspec-continue-change (Codex) or /openspec-continue-change (other agents)` (if it is not installed, run `openspec status --change "<name>" --json` to see the next artifact and `openspec instructions <artifact-id> --change "<name>" --json` for how to create it)
    - If `state: "all_done"`: congratulate, suggest archive
-   - Otherwise: proceed to implementation
+   - Otherwise: proceed immediately to implementation; do not ask for another confirmation once the user has invoked apply
 
    Treat `context` as a required prompt-level input. Read and consider it, and
    apply relevant project facts, conventions, and constraints while implementing.

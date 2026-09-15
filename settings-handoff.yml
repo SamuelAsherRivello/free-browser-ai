@@ -1,0 +1,30 @@
+- main "Free Browser AI chat workspace" [ref=e3]:
+  - generic [ref=e25]:
+    - generic [ref=e26]: Free Browser AI
+    - link "Free Browser AI project on GitHub" [ref=e28] [cursor=pointer]:
+      - /url: https://github.com/SamuelAsherRivello/free-browser-ai
+  - navigation "Workspace" [ref=e31]:
+    - button "About" [ref=e32] [cursor=pointer]
+    - button "Settings" [ref=e33] [cursor=pointer]
+    - button "Chat" [ref=e34] [cursor=pointer]
+  - region [ref=e48]:
+    - heading "Settings" [level=1] [ref=e49]
+    - heading "Provider Models" [level=2] [ref=e50]
+    - paragraph [ref=e51]: Models prepare on the first prompt, keeping browser memory free until needed.
+    - generic [ref=e52]:
+      - generic [ref=e53]:
+        - text: Provider
+        - combobox "Provider" [ref=e54]:
+          - option "Transformers.js" [selected]
+          - option "WebLLM"
+      - generic [ref=e55]:
+        - text: Model
+        - combobox "Model" [ref=e56]:
+          - option "SmolLM2 135M Instruct" [selected]
+      - button "Add Provider Model" [ref=e57] [cursor=pointer]
+    - paragraph [ref=e59]: No Provider Models configured.
+    - region [ref=e60]:
+      - heading "Persistence" [level=2] [ref=e61]
+      - paragraph [ref=e62]: Remove saved conversations and Provider Models, then reload this page. Model files cached by browser runtimes may remain.
+      - button "Reset local workspace" [ref=e63] [cursor=pointer]
+  - generic [ref=e45]: v0.0.4

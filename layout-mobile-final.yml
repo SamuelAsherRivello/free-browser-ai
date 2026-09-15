@@ -1,0 +1,19 @@
+- main "Free Browser AI chat workspace" [ref=e3]:
+  - generic [ref=e4]:
+    - generic [ref=e5]: Free Browser AI
+    - link "Free Browser AI project on GitHub" [ref=e7] [cursor=pointer]:
+      - /url: https://github.com/SamuelAsherRivello/free-browser-ai
+  - navigation "Workspace" [ref=e10]:
+    - button "About" [ref=e11] [cursor=pointer]
+    - button "Settings" [ref=e12] [cursor=pointer]
+    - button "Chat" [ref=e13] [cursor=pointer]
+  - region [ref=e14]:
+    - generic [ref=e15]:
+      - generic [ref=e16]:
+        - heading "Chat" [level=1] [ref=e17]
+        - paragraph [ref=e18]: Private conversations run entirely in this browser.
+      - button "Add Conversation" [ref=e19] [cursor=pointer]
+    - region "Start a new chat" [ref=e20]:
+      - paragraph [ref=e21]: Your conversations stay on this device.
+      - paragraph [ref=e22]: Add a Provider Model before starting your first private chat. Models download only when you use them.
+      - button "Configure a model" [ref=e23] [cursor=pointer]
