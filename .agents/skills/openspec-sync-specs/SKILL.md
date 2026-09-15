@@ -10,6 +10,10 @@ metadata:
   generatedBy: "1.13.0"
 ---
 
+## Current change session memory
+
+The current change belongs to this OpenCode conversation, never a shared project file. Retain the most recently created or selected change in this session; when no name is supplied, use it without asking. Ask only when this conversation has no current change or the user explicitly selects another.
+
 Sync delta specs from a change to main specs.
 
 This is an **agent-driven** operation - you will read delta specs and directly edit main specs to apply the changes. This allows intelligent merging (e.g., adding a scenario without copying the entire requirement).

@@ -37,6 +37,17 @@ The default HTML template uses four reusable `corner` instances inside
 - Pushing a branch, committing changes, or completing an OpenSpec/template
   workflow is not implicit approval to open a pull request.
 
+## OpenSpec change selection
+
+- OpenSpec's current change is session-local. Infer it from this OpenCode
+  instance's conversation only; never read or write a shared project file for
+  this purpose.
+- After creating, selecting, or explicitly switching a change, retain its name
+  as the current change for the rest of this conversation.
+- When an OpenSpec operation omits a change name, use that session's current
+  change. Ask only when this conversation has no current change or the user
+  explicitly requests a different one.
+
 ## Working directories
 
 - **Repository root** is the npm project root. It contains `.git`, repository

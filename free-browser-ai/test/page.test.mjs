@@ -28,6 +28,7 @@ test("catalog exposes lightweight and powerful Qwen models with download estimat
 test("Provider Models reject duplicates and removal closes dependent conversations", () => {
   const [configuration] = addProviderModel([], "transformers", "onnx-community/Qwen2.5-0.5B-Instruct");
   if (!configuration.id) throw new Error("Provider Model needs an ID.");
+  if (configuration.status !== "needs-preparation") throw new Error("New Provider Models must wait for explicit preparation.");
   try { addProviderModel([configuration], configuration.provider, configuration.model); throw new Error("Duplicate was accepted."); } catch (error) { if (!error.message.includes("already configured")) throw error; }
   const remaining = removeProviderModel([configuration], [{ id: "a", providerModelId: configuration.id }, { id: "b", providerModelId: "other" }], configuration.id);
   if (remaining.providerModels.length || remaining.conversations.map((item) => item.id).join() !== "b") throw new Error("Removal must close only dependent conversations.");
@@ -80,13 +81,14 @@ test("chat content leaves raw HTML inert and removes unsafe links", () => {
 });
 
 test("workspace declares the required accessible chat behavior", async () => {
-  const [page, app, adapters, transformerWorker, styles] = await Promise.all(["index.html", "src/App.jsx", "src/adapters.js", "src/transformers.worker.js", "src/style.css"].map((file) => readFile(new URL(file, appRoot), "utf8")));
+  const [page, app, adapters, transformerWorker, webllmWorker, styles] = await Promise.all(["index.html", "src/App.jsx", "src/adapters.js", "src/transformers.worker.js", "src/webllm.worker.js", "src/style.css"].map((file) => readFile(new URL(file, appRoot), "utf8")));
   for (const text of ["<title>Free Browser AI</title>", 'id="content_layer"', 'id="ui_layer"']) if (!page.includes(text)) throw new Error(`Missing page shell: ${text}`);
   for (const role of ["corner_top_left", "corner_top_right", "corner_bottom_left", "corner_bottom_right"]) if (!app.includes(`corner ${role}`)) throw new Error(`Missing ${role} corner.`);
-  for (const text of ["About", "Provider Models", "Add Conversation", "Submit (Enter)", "Shift+Enter adds a new line", "Retry original prompt", "clipboard.writeText", "Reset local workspace", "role=\"tablist\"", "<RichContent>{message.content}</RichContent>"]) if (!app.includes(text)) throw new Error(`Missing workspace behavior: ${text}`);
+  for (const text of ["About", "Provider Models", "Add Conversation", "Prepare", "Retry", "Update Settings", "Submit (Enter)", "Shift+Enter adds a new line", "Retry original prompt", "clipboard.writeText", "Reset local workspace", "role=\"tablist\"", "<RichContent>{message.content}</RichContent>"]) if (!app.includes(text)) throw new Error(`Missing workspace behavior: ${text}`);
   for (const dependency of ["transformers.worker.js", "webllm.worker.js", "@mlc-ai/web-llm", "CreateWebWorkerMLCEngine", "navigator.gpu", "modelFor(provider, modelId)", "interruptGenerate"]) if (!adapters.includes(dependency)) throw new Error(`Missing runtime adapter behavior: ${dependency}`);
+  for (const text of ["handler.onmessage.bind(handler)", "!model", "not available in this installed runtime", "event.error?.message"]) if (!webllmWorker.includes(text) && !adapters.includes(text)) throw new Error(`Missing robust WebLLM behavior: ${text}`);
   if (!transformerWorker.includes("qwenChatTemplate") || !transformerWorker.includes("repetition_penalty")) throw new Error("Transformers.js must apply the Qwen chat template and generation profile.");
-  for (const text of ["Generation", "Temperature", "Top P", "Repetition penalty", "Response length", "Restore recommended settings", "type=\"range\"", "modelOptionLabel(item)"]) if (!app.includes(text)) throw new Error(`Missing generation settings behavior: ${text}`);
+  for (const text of ["Generation", "generation_toggle", "aria-expanded", "Temperature", "Top P", "Repetition penalty", "Response length", "Restore recommended settings", "type=\"range\"", "modelOptionLabel(item)"]) if (!app.includes(text)) throw new Error(`Missing generation settings behavior: ${text}`);
   for (const text of ["top_p", "repetition_penalty", "max_tokens"]) if (!adapters.includes(text)) throw new Error(`WebLLM generation profile was not mapped: ${text}`);
   if (!styles.includes("@media (max-width: 600px)")) throw new Error("The workspace needs a narrow viewport layout.");
   for (const text of ["top_navigation", "workspace_brand", "workspace_footer", "--workspace-gutter", "--workspace-gap", "flex: 1; min-height: 0", ".chat_panel { display: flex; flex: 1"]) if (!app.includes(text) && !styles.includes(text)) throw new Error(`Missing responsive workspace layout: ${text}`);

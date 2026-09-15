@@ -24,9 +24,9 @@ function transformerAdapter(modelId, onProgress, signal) {
   };
 }
 
-function abortable(promise, signal, cancel) {
+function abortable(promise, signal) {
   if (!signal) return promise;
-  return Promise.race([promise, new Promise((_, reject) => signal.addEventListener("abort", () => { cancel(); reject(new Error("Preparation cancelled.")); }, { once: true }))]);
+  return Promise.race([promise, new Promise((_, reject) => signal.addEventListener("abort", () => reject(new Error("Preparation cancelled.")), { once: true }))]);
 }
 
 export async function prepareAdapter(provider, modelId, onProgress, signal) {
@@ -47,19 +47,20 @@ export async function prepareAdapter(provider, modelId, onProgress, signal) {
     ]);
     try {
       const model = prebuiltAppConfig.model_list.find((item) => item.model_id === modelId);
+      if (!model) throw new Error("The selected WebLLM model is not available in this installed runtime.");
       const missingFeature = model?.required_features?.find((feature) => !gpuAdapter.features.has(feature));
       if (missingFeature) throw new Error(`WebLLM requires the WebGPU feature ${missingFeature}, which this device does not support.`);
       const downloadSize = modelFor(provider, modelId)?.downloadMiB;
       onProgress(`Downloading WebLLM model files${downloadSize ? ` (up to ${downloadSize} MiB)` : ""}...`, 0);
       const workerFailure = new Promise((_, reject) => {
-        worker.onerror = (event) => reject(new Error(`WebLLM worker failed: ${event.message || "unknown error"}`));
+        worker.onerror = (event) => reject(new Error(`WebLLM worker failed: ${event.error?.message || event.message || "unknown error"}`));
         worker.onmessageerror = () => reject(new Error("WebLLM worker returned an unreadable message."));
       });
       const engine = await abortable(Promise.race([CreateWebWorkerMLCEngine(worker, modelId, { initProgressCallback: (report) => {
         const percent = Math.round(report.progress * 100);
         const detail = downloadSize ? `${percent}% of setup; model download up to ${downloadSize} MiB` : `${percent}% of setup`;
         onProgress(`${report.text || "Preparing WebLLM..."} (${detail})`, percent);
-      } }), workerFailure]), signal, () => worker.terminate());
+      } }), workerFailure]), signal);
       return {
         async generate(messages, profile, onToken) {
           const stream = await engine.chat.completions.create({ messages, stream: true, temperature: profile.temperature, top_p: profile.topP, repetition_penalty: profile.repetitionPenalty, max_tokens: profile.maxNewTokens });

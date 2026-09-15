@@ -3,6 +3,10 @@ name: openspec-grill-me
 description: Interview the user about an OpenSpec exploration, proposal, or standalone plan using consistent numbered choices and a recommended answer. Investigate codebase facts directly and reconcile confirmed decisions into authorized planning artifacts. Planning only; never implements code.
 ---
 
+## Current change session memory
+
+The current change belongs to this OpenCode conversation, never a shared project file. Treat the session's most recently created or selected change as the current proposal during planning unless the user explicitly names another.
+
 # OpenSpec Grill Me
 
 Resolve material ambiguity through an adaptive, one-question-at-a-time

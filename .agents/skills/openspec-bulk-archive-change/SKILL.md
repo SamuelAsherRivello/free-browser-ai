@@ -10,6 +10,10 @@ metadata:
   generatedBy: "1.13.0"
 ---
 
+## Current change session memory
+
+The current change belongs to this OpenCode conversation, never a shared project file. Preserve it for the session; use it as the default when one change is needed, unless the user explicitly selects another.
+
 Archive multiple completed changes in a single operation.
 
 This skill allows you to batch-archive changes, handling spec conflicts intelligently by checking the codebase to determine what's actually implemented.

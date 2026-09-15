@@ -10,6 +10,10 @@ metadata:
   generatedBy: "1.13.0"
 ---
 
+## Current change session memory
+
+After successfully creating a change, retain its name as the current change for this OpenCode conversation. Do not write shared project state. Follow-up operations with no explicit name use this session value without asking.
+
 Start a new change using the experimental artifact-driven approach.
 
 **Store selection:** If the user names a store (a store is a standalone OpenSpec repo registered on this machine) or the work lives in one, run `openspec store list --json` to discover registered store ids, then pass `--store <id>` on the commands that read or write specs and changes (`new change`, `status`, `instructions`, `list`, `show`, `validate`, `archive`, `doctor`, `context`, `schemas`, `view`). Once selected, treat `--store <id>` as sticky for the rest of the workflow. Every unscoped example of those commands below is shorthand: before running it, append the flag. For example, run `openspec status --change "<name>" --json --store "<id>"`, not the unscoped form shown below. Other commands do not take the flag. Hints printed by commands already carry the flag; keep it on follow-ups. Without a store, commands act on the nearest local `openspec/` root.
