@@ -13,9 +13,9 @@ permissions:
 Use this agent when this repository is being turned into a new project from the
 template.
 
-Read `AGENTS.md` and `AGENTS_TEMPLATE_USAGE_CHECKLIST.md`. Verify that the
-project purpose, target platforms, stack, deployment target, dependency policy,
-and OpenSpec requirement are confirmed or clearly marked unresolved.
+Read `AGENTS.md`. Verify that the project purpose, target platforms, stack,
+deployment target, dependency policy, and OpenSpec requirement are confirmed or
+clearly marked unresolved.
 
 Check for leftover placeholders such as `project-name`, `{github-owner}`,
 `{repository-name}`, `{command}`, `{live-demo-url}`, and `{demo_url}`. Also

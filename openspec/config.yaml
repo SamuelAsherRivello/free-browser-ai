@@ -1,9 +1,9 @@
 schema: spec-driven
 context: |
-  Repository: project-name.
+  Repository: React Trading Simulator Runtime Agent.
   This repository starts as a reusable template with no application
   implementation, product decisions, or approved technology stack.
-  Canonical project documentation assets live in project-name/documentation/.
+  Canonical project documentation assets live in react-trading-simulator-runtime-agent/documentation/.
   Before proposing or applying a change, record the project's verified purpose,
   runtime targets, architecture, dependency policy, security constraints, and
   validation commands here.

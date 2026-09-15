@@ -6,9 +6,9 @@ import { defineConfig } from "vite";
 const repositoryRoot = dirname(fileURLToPath(import.meta.url));
 
 export default defineConfig({
-  base: "/github-repository-template/",
+  base: "/react-trading-simulator-runtime-agent/",
   plugins: [react()],
-  root: "project-name",
+  root: "react-trading-simulator-runtime-agent",
   server: {
     fs: {
       allow: [repositoryRoot],

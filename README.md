@@ -1,7 +1,7 @@
-<!-- AI: Keep commands rooted at the repository. The Vite application, source, tests, and build output belong in project-name/. -->
-![Samuel Asher Rivello](project-name/documentation/samuel-asher-rivello-banner.png)
+<!-- AI: Keep commands rooted at the repository. The Vite application, source, tests, and build output belong in react-trading-simulator-runtime-agent/. -->
+![Samuel Asher Rivello](react-trading-simulator-runtime-agent/documentation/samuel-asher-rivello-banner.png)
 
-# {project-name}
+# React Trading Simulator Runtime Agent
 
 <!-- AI: Update this project summary when the template is used. -->
 This is the project repo....
@@ -10,11 +10,11 @@ This is the project repo....
 
 ### Screenshots
 
-<a href="project-name/documentation/screenshot01.png"><img src="project-name/documentation/screenshot01.png" width="400" alt="Screenshot placeholder" /></a>
+<a href="react-trading-simulator-runtime-agent/documentation/screenshot01.png"><img src="react-trading-simulator-runtime-agent/documentation/screenshot01.png" width="400" alt="Screenshot placeholder" /></a>
 
 ## Live Demo
 
-- [{live-demo-url}](https://samuelasherrivello.github.io/github-repository-template/)
+- [React Trading Simulator Runtime Agent](https://samuelasherrivello.github.io/react-trading-simulator-runtime-agent/)
 
 ## Table of Contents
 
@@ -52,15 +52,14 @@ This is the project details...
 
 ### 📝 Structure
 
-- `project-name/index.html` provides the plain safe-area HTML shell.
-- `project-name/test/` contains focused automated checks for the starter.
-- `project-name/documentation/` contains canonical README images and project
+- `react-trading-simulator-runtime-agent/index.html` provides the plain safe-area HTML shell.
+- `react-trading-simulator-runtime-agent/test/` contains focused automated checks for the starter.
+- `react-trading-simulator-runtime-agent/documentation/` contains canonical README images and project
   documentation assets.
 
 ### 📦 AI
 
 - `AGENTS.md` contains repository-specific AI agent guidance.
-- `AGENTS_TEMPLATE_USAGE_CHECKLIST.md` contains the template reuse checklist.
 - [OpenCode](.opencode/) contains additional agent guidance.
 - [openspec](openspec/) contains the repository's specification workflow
   configuration.

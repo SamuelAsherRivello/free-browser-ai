@@ -1,8 +1,8 @@
 import { useEffect, useState } from "react";
 import versionText from "../../version.txt?raw";
 
-const fullscreenStorageKey = "github-repository-template.fullscreen";
-const repositoryUrl = "https://github.com/SamuelAsherRivello/github-repository-template";
+const fullscreenStorageKey = "react-trading-simulator-runtime-agent.fullscreen";
+const repositoryUrl = "https://github.com/SamuelAsherRivello/react-trading-simulator-runtime-agent";
 const uiMarginPixels = 20;
 
 function GitHubMark() {
@@ -66,7 +66,7 @@ export function App() {
     <>
       <div className="corner corner_top_left">
         <div id="project_title" className="corner_body">
-          GitHub Repository Template
+          React Trading Simulator Runtime Agent
         </div>
       </div>
       <div className="corner corner_top_right">

@@ -5,7 +5,7 @@ import viteConfig from "../../vite.config.js";
 const appRoot = new URL("../", import.meta.url);
 
 test("builds for the GitHub Pages project path", () => {
-  if (viteConfig.base !== "/github-repository-template/") {
+  if (viteConfig.base !== "/react-trading-simulator-runtime-agent/") {
     throw new Error("The GitHub Pages build must use the repository project path as its Vite base.");
   }
 });
@@ -15,7 +15,7 @@ test("documents the plain safe-area template", async () => {
   const app = await readFile(new URL("src/App.jsx", appRoot), "utf8");
   const styles = await readFile(new URL("src/style.css", appRoot), "utf8");
 
-  if (!page.includes("<title>GitHub Repository Template</title>")) {
+  if (!page.includes("<title>React Trading Simulator Runtime Agent</title>")) {
     throw new Error("The browser title must identify the template.");
   }
   if (!page.includes('id="content_layer"')) {
@@ -83,8 +83,8 @@ test("documents the plain safe-area template", async () => {
   if (!app.includes("requestFullscreen") || !app.includes("exitFullscreen")) {
     throw new Error("The fullscreen setting must toggle the browser fullscreen API.");
   }
-  if (!app.includes("https://github.com/SamuelAsherRivello/github-repository-template")) {
-    throw new Error("The page must link to the template repository.");
+  if (!app.includes("React Trading Simulator Runtime Agent")) {
+    throw new Error("The page must identify the project.");
   }
   if (!app.includes("tabIndex={-1}")) {
     throw new Error("The corner UI controls must be removed from the tabbing order.");
