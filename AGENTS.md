@@ -61,6 +61,14 @@ The default HTML template uses four reusable `corner` instances inside
 Correct: run `git status`, dependency, build, test, and run commands from the
 repository root; keep the application's source and tests under `free-browser-ai/`.
 
+## Generated artifacts
+
+- Write temporary screenshots, browser snapshots, and review artifacts to
+  `output/`, which is ignored by Git. Do not create these files at the
+  repository root.
+- Store only intentional, reviewed documentation assets in
+  `free-browser-ai/documentation/`. Do not place temporary output there.
+
 ## Agent execution discipline
 
 - Time-box investigation to the minimum needed to identify an actionable fix.

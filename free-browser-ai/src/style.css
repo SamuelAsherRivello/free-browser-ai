@@ -80,4 +80,5 @@ textarea { min-height: 6rem; resize: vertical; }
 .corner a, .corner a:visited { color: inherit; }
 .workspace_brand a { align-items: center; color: inherit; display: inline-flex; min-height: 1.5rem; min-width: 1.5rem; }
 .corner_title { font-size: 1rem; font-weight: 800; }.corner_body { font-size: .85rem; }.settings_option { background: transparent; border: 0; color: #a52236; padding: 0; text-decoration: underline; }.corner small { display: block; font-size: .65rem; max-width: 190px; }
+@media (min-width: 1000px) { .workspace { height: 200%; transform: scale(.5); transform-origin: top center; } }
 @media (max-width: 600px) { #ui_layer { --workspace-gutter: 1rem; --workspace-gap: 1rem; padding: 1rem var(--workspace-gutter); }.panel_heading, .configuration_form, .new_conversation, .configuration { align-items: stretch; flex-direction: column; }.configuration_actions { flex-wrap: wrap; }.panel_heading .primary_button, .configuration_form .primary_button, .new_conversation .primary_button { width: 100%; }.corner { font-size: 8pt; }.corner_bottom_right { display: none; } }

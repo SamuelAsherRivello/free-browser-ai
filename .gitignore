@@ -9,3 +9,6 @@ node_modules/
 .env.*
 # Playwright CLI output (may contain credentials)
 .playwright-cli/
+
+# Transient screenshots, browser snapshots, and review artifacts.
+/output/
