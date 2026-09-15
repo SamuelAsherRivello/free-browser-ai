@@ -32,11 +32,19 @@ test("saved Provider Models restore as needing preparation while conversations r
   if (!storage.getItem(storageKey)) throw new Error("State was not saved.");
 });
 
+test("the selected workspace tab persists while Chat is the first-visit default", () => {
+  const empty = restoreState(memoryStorage());
+  if (empty.view !== "chat") throw new Error("Chat must be the default workspace tab.");
+  const storage = memoryStorage();
+  saveState({ providerModels: [], conversations: [], activeConversationId: null, view: "settings" }, storage);
+  if (restoreState(storage).view !== "settings") throw new Error("The selected workspace tab was not restored.");
+});
+
 test("workspace declares the required accessible chat behavior", async () => {
   const [page, app, adapters, styles] = await Promise.all(["index.html", "src/App.jsx", "src/adapters.js", "src/style.css"].map((file) => readFile(new URL(file, appRoot), "utf8")));
   for (const text of ["<title>Free Browser AI</title>", 'id="content_layer"', 'id="ui_layer"']) if (!page.includes(text)) throw new Error(`Missing page shell: ${text}`);
   for (const role of ["corner_top_left", "corner_top_right", "corner_bottom_left", "corner_bottom_right"]) if (!app.includes(`corner ${role}`)) throw new Error(`Missing ${role} corner.`);
-  for (const text of ["Provider Models", "Add Conversation", "Submit (Shift+Enter)", "Retry original prompt", "clipboard.writeText", "Reset app data", "role=\"tablist\""]) if (!app.includes(text)) throw new Error(`Missing workspace behavior: ${text}`);
+  for (const text of ["About", "Provider Models", "Add Conversation", "Submit (Enter)", "Shift+Enter adds a new line", "Retry original prompt", "clipboard.writeText", "Reset local workspace", "role=\"tablist\""]) if (!app.includes(text)) throw new Error(`Missing workspace behavior: ${text}`);
   for (const dependency of ["transformers.worker.js", "webllm.worker.js", "@mlc-ai/web-llm", "CreateWebWorkerMLCEngine", "navigator.gpu", "interruptGenerate"]) if (!adapters.includes(dependency)) throw new Error(`Missing runtime adapter behavior: ${dependency}`);
   if (!styles.includes("@media (max-width: 600px)")) throw new Error("The workspace needs a narrow viewport layout.");
 });

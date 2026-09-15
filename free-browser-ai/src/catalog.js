@@ -2,17 +2,17 @@ export const providers = {
   transformers: {
     label: "Transformers.js",
     models: [{
-      id: "onnx-community/Qwen2.5-0.5B-Instruct",
-      label: "Qwen2.5 0.5B Instruct",
-      source: "https://huggingface.co/onnx-community/Qwen2.5-0.5B-Instruct",
+      id: "onnx-community/SmolLM2-135M-ONNX",
+      label: "SmolLM2 135M Instruct",
+      source: "https://huggingface.co/onnx-community/SmolLM2-135M-ONNX",
     }],
   },
   webllm: {
     label: "WebLLM",
     models: [{
-      id: "Qwen2.5-0.5B-Instruct-q4f16_1-MLC",
-      label: "Qwen2.5 0.5B Instruct (q4f16)",
-      source: "https://huggingface.co/mlc-ai/Qwen2.5-0.5B-Instruct-q4f16_1-MLC",
+      id: "SmolLM2-360M-Instruct-q4f16_1-MLC",
+      label: "SmolLM2 360M Instruct (q4f16)",
+      source: "https://huggingface.co/mlc-ai/SmolLM2-360M-Instruct-q4f16_1-MLC",
     }],
   },
 };
