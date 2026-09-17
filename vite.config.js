@@ -7,6 +7,7 @@ const repositoryRoot = dirname(fileURLToPath(import.meta.url));
 
 export default defineConfig({
   base: "/free-browser-ai/",
+  envDir: repositoryRoot,
   plugins: [react()],
   root: "free-browser-ai",
   server: {
