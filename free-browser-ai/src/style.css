@@ -1,8 +1,10 @@
 :root { color: #132033; background: #eef2f5; font-family: Inter, ui-sans-serif, system-ui, sans-serif; }
 * { box-sizing: border-box; }
 html, body, #content_layer, #ui_layer { min-height: 100%; margin: 0; }
+html, body { overflow-x: clip; }
 #ui_layer { --workspace-gutter: max(1.25rem, calc((100vw - 960px) / 2)); --workspace-gap: 1.25rem; height: 100dvh; overflow: hidden; padding: 1.25rem var(--workspace-gutter); }
 button, select, textarea, input { font: inherit; }
+button, select, textarea, input, a { scroll-margin-block: 1rem; }
 button { cursor: pointer; }
 button:focus-visible, select:focus-visible, textarea:focus-visible, input:focus-visible, a:focus-visible { outline: 3px solid #f4a261; outline-offset: -3px; }
 .workspace { display: flex; flex-direction: column; gap: var(--workspace-gap); height: 100%; margin: auto; max-width: 960px; min-height: 0; }
@@ -81,4 +83,74 @@ textarea { min-height: 6rem; resize: vertical; }
 .workspace_brand a { align-items: center; color: inherit; display: inline-flex; min-height: 1.5rem; min-width: 1.5rem; }
 .corner_title { font-size: 1rem; font-weight: 800; }.corner_body { font-size: .85rem; }.settings_option { background: transparent; border: 0; color: #a52236; padding: 0; text-decoration: underline; }.corner small { display: block; font-size: .65rem; max-width: 190px; }
 @media (min-width: 1000px) { .workspace { height: 200%; transform: scale(.5); transform-origin: top center; } }
-@media (max-width: 600px) { #ui_layer { --workspace-gutter: 1rem; --workspace-gap: 1rem; padding: 1rem var(--workspace-gutter); }.panel_heading, .configuration_form, .new_conversation, .configuration { align-items: stretch; flex-direction: column; }.configuration_actions { flex-wrap: wrap; }.panel_heading .primary_button, .configuration_form .primary_button, .new_conversation .primary_button { width: 100%; }.corner { font-size: 8pt; }.corner_bottom_right { display: none; } }
+@media (max-width: 600px) {
+  #ui_layer {
+    --mobile-pad-bottom: max(1rem, env(safe-area-inset-bottom));
+    --mobile-pad-left: max(1rem, env(safe-area-inset-left));
+    --mobile-pad-right: max(1rem, env(safe-area-inset-right));
+    --mobile-pad-top: max(1rem, env(safe-area-inset-top));
+    --workspace-gap: 1rem;
+    --workspace-gutter: 1rem;
+    height: auto;
+    min-height: 100dvh;
+    overflow: visible;
+    padding: var(--mobile-pad-top) var(--mobile-pad-right) var(--mobile-pad-bottom) var(--mobile-pad-left);
+  }
+  .workspace[data-conversation-state="setup"] {
+    height: auto;
+    min-height: calc(100dvh - var(--mobile-pad-top) - var(--mobile-pad-bottom));
+  }
+  .workspace[data-conversation-state="setup"] .panel { flex: 1 0 auto; overflow: visible; }
+  .workspace[data-view="settings"][data-conversation-state="setup"] .configuration_list {
+    flex: none;
+    margin-right: 0;
+    overflow-y: visible;
+    padding-right: 0;
+  }
+  .workspace[data-conversation-state="active"] {
+    height: calc(100dvh - var(--mobile-pad-top) - var(--mobile-pad-bottom));
+    min-height: 0;
+  }
+  .top_navigation { flex-direction: column-reverse; gap: .5rem; }
+  .top_navigation_tabs { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); width: 100%; }
+  .top_navigation button { min-height: 2.75rem; min-width: 2.75rem; padding: .55rem .5rem; }
+  .workspace_brand { justify-content: space-between; padding-right: 0; width: 100%; }
+  .corner_title { white-space: nowrap; }
+  .workspace_brand a { height: 2.75rem; justify-content: center; width: 2.75rem; }
+  .panel_heading, .configuration_form, .new_conversation, .configuration { align-items: stretch; flex-direction: column; }
+  .configuration_actions { flex-wrap: wrap; }
+  .panel_heading .primary_button, .configuration_form .primary_button, .new_conversation .primary_button { width: 100%; }
+  .workspace[data-conversation-state="active"] .panel_heading { align-items: center; flex-direction: row; }
+  .workspace[data-conversation-state="active"] .panel_heading .tab_subheading,
+  .workspace[data-conversation-state="active"] .panel_heading p { display: none; }
+  .workspace[data-conversation-state="active"] .panel_heading .primary_button { width: auto; }
+  .workspace[data-conversation-state="active"] .tab_list { margin: .65rem 0 0; }
+  .workspace[data-conversation-state="active"] .conversation { margin-top: .5rem; padding-top: .5rem; }
+  .workspace[data-conversation-state="active"] .transcript { margin: .65rem 0; min-height: 0; overflow-y: auto; }
+  .workspace[data-conversation-state="active"] textarea { min-height: 4rem; resize: none; }
+  .corner { font-size: 8pt; }
+}
+@media (max-height: 600px) and (pointer: coarse) {
+  #ui_layer {
+    --mobile-pad-bottom: max(.5rem, env(safe-area-inset-bottom));
+    --mobile-pad-left: max(.5rem, env(safe-area-inset-left));
+    --mobile-pad-right: max(.5rem, env(safe-area-inset-right));
+    --mobile-pad-top: max(.5rem, env(safe-area-inset-top));
+    --workspace-gap: .5rem;
+  }
+  .top_navigation { flex-direction: row; gap: .25rem; }
+  .top_navigation_tabs { display: flex; flex: 1 1 auto; justify-content: space-between; min-width: 0; width: auto; }
+  .top_navigation button { font-size: .8rem; min-height: 2.75rem; min-width: 2.75rem; padding: .4rem .5rem; }
+  .workspace_brand { flex: 0 0 auto; gap: .25rem; padding-right: 0; width: auto; }
+  .workspace_brand a { height: 2.75rem; justify-content: center; width: 2.75rem; }
+  .corner_title { font-size: .75rem; white-space: nowrap; }
+  .panel { padding: .75rem; }
+  .workspace[data-conversation-state="active"] .panel h1 { font-size: 1.5rem; }
+  .workspace[data-conversation-state="active"] .tab_list { margin-top: .35rem; }
+  .workspace[data-conversation-state="active"] .conversation { margin-top: .25rem; padding-top: .25rem; }
+  .workspace[data-conversation-state="active"] .model_label { align-items: baseline; display: flex; gap: .4rem; }
+  .workspace[data-conversation-state="active"] .transcript { margin: .35rem 0; }
+  .workspace[data-conversation-state="active"] textarea { min-height: 3rem; }
+  .workspace[data-conversation-state="active"] .prompt_hint { margin-bottom: .25rem; }
+  .workspace[data-conversation-state="active"] .prompt_form > div { margin-top: .35rem; }
+}

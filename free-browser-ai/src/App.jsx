@@ -59,6 +59,7 @@ export function App() {
 
   useEffect(() => saveState({ providerModels, conversations, activeConversationId, view, generationProfiles }), [providerModels, conversations, activeConversationId, view, generationProfiles]);
   useEffect(() => () => { adapters.current.forEach((adapter) => adapter.release()); preparations.current.forEach((controller) => controller.abort()); }, []);
+  useEffect(() => { window.scrollTo({ top: 0, left: 0 }); }, [view]);
   const updateProviderModel = (id, update) => setProviderModels((items) => items.map((item) => item.id === id ? update(item) : item));
   const updateConversation = (id, update) => setConversations((items) => items.map((item) => item.id === id ? update(item) : item));
   const updateGenerationProfile = (providerId, modelId, name, value) => setGenerationProfiles((profiles) => ({ ...profiles, [providerModelKey(providerId, modelId)]: { ...profiles[providerModelKey(providerId, modelId)], [name]: value } }));
@@ -169,7 +170,7 @@ export function App() {
   const changeProvider = (nextProvider) => { setProvider(nextProvider); setModel(modelsFor(nextProvider)[0].id); };
   const version = versionText.trim().replace(/^version=/, "").replace(/^v/, "");
 
-  return <main className="workspace" aria-label="Free Browser AI chat workspace">
+  return <main className="workspace" data-view={view} data-conversation-state={view === "chat" && activeConversation ? "active" : "setup"} aria-label="Free Browser AI chat workspace">
     <nav className="top_navigation" aria-label="Workspace"><div className="top_navigation_tabs"><button type="button" title="Open project overview" aria-current={view === "about" ? "page" : undefined} onClick={() => setView("about")}>About</button><button type="button" title="Open workspace settings" aria-current={view === "settings" ? "page" : undefined} onClick={() => setView("settings")}>Settings</button><button type="button" title="Open workspace chat" aria-current={view === "chat" ? "page" : undefined} onClick={() => setView("chat")}>Chat</button></div><div className="workspace_brand corner corner_top_left"><span className="corner_title">Free Browser AI</span><a className="corner corner_top_right" href={repositoryUrl} target="_blank" rel="noreferrer" aria-label="Free Browser AI project on GitHub"><GitHubMark /></a></div></nav>
     {view === "about" ? <About /> : view === "settings" ? <Settings provider={provider} model={model} providerModels={providerModels} generationProfiles={generationProfiles} editingConfigurationId={editingConfigurationId} error={settingsError} onProvider={changeProvider} onModel={setModel} onAdd={addConfiguration} onPrepare={prepare} onRemove={removeConfiguration} onGenerationChange={updateGenerationProfile} onRestoreGeneration={resetGenerationProfile} onEdit={setEditingConfigurationId} onReset={reset} /> : <Chat adding={addingConversation} setAdding={setAddingConversation} selected={selectedConfiguration} setSelected={setSelectedConfiguration} configurations={providerModels} conversations={conversations} active={activeConversation} setActive={setActiveConversationId} onCreate={createConversation} onClose={closeConversation} prompt={prompt} setPrompt={setPrompt} onSend={send} onStop={stop} onCopy={copyText} />}
     {copyFeedback && <p className="copy_feedback" role="status">{copyFeedback}</p>}

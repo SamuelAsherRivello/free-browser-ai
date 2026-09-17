@@ -9,7 +9,8 @@
     "capture:screenshot": "node free-browser-ai/test/capture-screenshot.mjs",
     "pw": "playwright-cli",
     "pw:help": "playwright-cli --help",
-    "test": "node --test --test-isolation=none free-browser-ai/test/page.test.mjs"
+    "test": "node --test --test-isolation=none free-browser-ai/test/page.test.mjs",
+    "test:responsive": "node --test --test-isolation=none free-browser-ai/test/responsive.test.mjs"
   },
   "dependencies": {
     "@huggingface/transformers": "^4.2.0",

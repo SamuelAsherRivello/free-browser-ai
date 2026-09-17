@@ -109,3 +109,35 @@ test("workspace declares the required accessible chat behavior", async () => {
   for (const text of ["outline-offset: -3px", "scroll-padding: .5rem"]) if (!styles.includes(text)) throw new Error(`Focusable content can be clipped: ${text}`);
   for (const text of ["top_navigation", "workspace_brand", "workspace_footer", "flex: 0 0 1.5rem", "--workspace-gutter", "--workspace-gap", ".configuration_list { align-content: start; display: grid; flex: 1", ".conversation { display: flex; flex: 1", ".chat_panel { display: flex; flex: 1"]) if (!app.includes(text) && !styles.includes(text)) throw new Error(`Missing responsive workspace layout: ${text}`);
 });
+
+test("mobile navigation separates the brand from full-width touch targets", async () => {
+  const styles = await readFile(new URL("src/style.css", appRoot), "utf8");
+  for (const rule of [
+    ".top_navigation { flex-direction: column-reverse; gap: .5rem; }",
+    ".top_navigation_tabs { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); width: 100%; }",
+    ".workspace_brand { justify-content: space-between; padding-right: 0; width: 100%; }",
+    ".corner_title { white-space: nowrap; }",
+    ".workspace_brand a { height: 2.75rem; justify-content: center; width: 2.75rem; }",
+  ]) if (!styles.includes(rule)) throw new Error(`Missing mobile navigation rule: ${rule}`);
+});
+
+test("workspace exposes responsive layout state", async () => {
+  const app = await readFile(new URL("src/App.jsx", appRoot), "utf8");
+  for (const marker of [
+    "data-view={view}",
+    'data-conversation-state={view === "chat" && activeConversation ? "active" : "setup"}',
+  ]) if (!app.includes(marker)) throw new Error(`Missing responsive layout state: ${marker}`);
+});
+
+test("workspace declares mobile viewport foundations and scroll ownership", async () => {
+  const [page, styles] = await Promise.all(["index.html", "src/style.css"].map((file) => readFile(new URL(file, appRoot), "utf8")));
+  for (const marker of [
+    "viewport-fit=cover",
+    'env(safe-area-inset-top)',
+    'env(safe-area-inset-bottom)',
+    '.workspace[data-conversation-state="setup"]',
+    '.workspace[data-conversation-state="active"]',
+    'scroll-margin-block',
+    '@media (max-height: 600px) and (pointer: coarse)',
+  ]) if (!page.includes(marker) && !styles.includes(marker)) throw new Error(`Missing mobile viewport foundation: ${marker}`);
+});
