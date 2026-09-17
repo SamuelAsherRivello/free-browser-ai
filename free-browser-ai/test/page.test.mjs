@@ -81,6 +81,33 @@ test("generation profile restoration clears only the selected model override", (
   if (effectiveGenerationProfile("transformers", "onnx-community/Qwen2.5-0.5B-Instruct", restored[transformerKey]).temperature !== 0.7) throw new Error("Restore must return to the model recommendation.");
 });
 
+test("the last successfully prepared Provider Model persists without restoring stale runtime readiness", () => {
+  const storage = memoryStorage();
+  const providerModels = [
+    { id: "transformer-model", provider: "transformers", model: "onnx-community/Qwen2.5-0.5B-Instruct", status: "needs-preparation" },
+    { id: "webllm-model", provider: "webllm", model: "Qwen2.5-0.5B-Instruct-q4f16_1-MLC", status: "ready" },
+  ];
+  saveState({ providerModels, conversations: [], activeConversationId: null, view: "settings", generationProfiles: {}, lastPreparedProviderModelId: "webllm-model" }, storage);
+  const saved = JSON.parse(storage.getItem(storageKey));
+  const restored = restoreState(storage);
+  if (saved.lastPreparedProviderModelId !== "webllm-model") throw new Error("The latest successful Provider Model was not persisted.");
+  if (restored.lastPreparedProviderModelId !== "webllm-model") throw new Error("The latest successful Provider Model was not restored.");
+  if (restored.providerModels.some((item) => item.status !== "needs-preparation")) throw new Error("A persisted preparation target must not revive stale runtime readiness.");
+});
+
+test("restoration rejects absent, stale, and unsupported automatic preparation targets", () => {
+  const cases = [
+    { label: "absent", providerModels: [{ id: "valid", provider: "transformers", model: "onnx-community/Qwen2.5-0.5B-Instruct" }] },
+    { label: "stale", lastPreparedProviderModelId: "missing", providerModels: [{ id: "valid", provider: "transformers", model: "onnx-community/Qwen2.5-0.5B-Instruct" }] },
+    { label: "unsupported", lastPreparedProviderModelId: "unsupported", providerModels: [{ id: "unsupported", provider: "transformers", model: "removed-model" }] },
+  ];
+  for (const item of cases) {
+    const storage = memoryStorage();
+    storage.setItem(storageKey, JSON.stringify({ catalogVersion, conversations: [], view: "settings", ...item }));
+    if (restoreState(storage).lastPreparedProviderModelId !== null) throw new Error(`${item.label} automatic preparation target must be discarded.`);
+  }
+});
+
 test("the selected workspace tab persists while Chat is the first-visit default", () => {
   const empty = restoreState(memoryStorage());
   if (empty.view !== "chat") throw new Error("Chat must be the default workspace tab.");

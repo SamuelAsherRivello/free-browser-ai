@@ -7,6 +7,7 @@ import { createServer } from "vite";
 const configFile = fileURLToPath(new URL("../../vite.config.js", import.meta.url));
 const storageKey = "free-browser-ai.state.v2";
 const modelId = "onnx-community/Qwen2.5-0.5B-Instruct";
+const secondModelId = "onnx-community/Qwen2.5-1.5B-Instruct";
 const statsUrl = "https://stats.test";
 const statsPublishableKey = "sb_publishable_responsive_test";
 const browserTypes = { chromium, webkit };
@@ -41,16 +42,21 @@ function savedState({ activeConversation = true, view = "settings" } = {}) {
 }
 
 async function openFixture(browserType, options = {}) {
-  const { activeConversation = true, view = "settings", viewport = { width: 390, height: 844 }, mobile = true, statsResponse } = options;
+  const { activeConversation = true, view = "settings", viewport = { width: 390, height: 844 }, mobile = true, statsResponse, state, workerScript, waitUntil = "networkidle" } = options;
   const browser = await browserType.launch();
   const context = await browser.newContext({ viewport, hasTouch: mobile, isMobile: mobile });
-  await context.addInitScript(({ key, state }) => localStorage.setItem(key, JSON.stringify(state)), { key: storageKey, state: savedState({ activeConversation, view }) });
+  await context.addInitScript(({ key, state: initialState }) => localStorage.setItem(key, JSON.stringify(initialState)), { key: storageKey, state: state ?? savedState({ activeConversation, view }) });
   const page = await context.newPage();
+  let workerRequestCount = 0;
+  if (workerScript) await page.route("**/transformers.worker.js*", (route) => {
+    workerRequestCount += 1;
+    return route.fulfill({ status: 200, contentType: "application/javascript", body: workerScript });
+  });
   if (statsResponse !== undefined) await page.route(`${statsUrl}/**`, (route) => statsResponse === null
     ? route.fulfill({ status: 503, contentType: "application/json", body: JSON.stringify({ message: "Unavailable" }) })
     : route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify(statsResponse) }));
-  await page.goto(appUrl, { waitUntil: "networkidle" });
-  return { browser, page };
+  await page.goto(appUrl, { waitUntil });
+  return { browser, page, workerRequestCount: () => workerRequestCount };
 }
 
 async function forEachBrowser(t, callback) {
@@ -306,6 +312,79 @@ test("view and viewport changes keep the active scroll owner and focus reachable
 
       await fixture.page.setViewportSize({ width: 390, height: 640 });
       await fixture.page.getByRole("heading", { name: "Settings", exact: true }).waitFor();
+    } finally {
+      await fixture.browser.close();
+    }
+  });
+});
+
+const restorationTransformerWorker = `
+self.onmessage = ({ data }) => {
+  if (data.type === "prepare") {
+    self.postMessage({ type: "progress", text: "Restoring cached model: 42%" });
+    setTimeout(() => self.postMessage({ type: "prepared" }), 75);
+  }
+};`;
+
+const failingRestorationTransformerWorker = `
+self.onmessage = ({ data }) => {
+  if (data.type === "prepare") {
+    self.postMessage({ type: "progress", text: "Restoring cached model: 42%" });
+    setTimeout(() => self.postMessage({ type: "error", message: "Cached model could not initialize." }), 50);
+  }
+};`;
+
+test("successful preparation replaces and removal clears the remembered Provider Model", async (t) => {
+  await forEachBrowser(t, async (browserType) => {
+    const state = savedState({ activeConversation: false });
+    state.providerModels.push({ id: "model-2", provider: "transformers", model: secondModelId });
+    const fixture = await openFixture(browserType, { state, workerScript: restorationTransformerWorker, viewport: { width: 1024, height: 768 }, mobile: false });
+    try {
+      const cards = fixture.page.locator(".configuration");
+      await cards.nth(0).getByRole("button", { name: "Prepare", exact: true }).click();
+      await cards.nth(0).getByText("Ready", { exact: true }).waitFor();
+      await fixture.page.waitForFunction(({ key }) => JSON.parse(localStorage.getItem(key)).lastPreparedProviderModelId === "model-1", { key: storageKey });
+
+      await cards.nth(1).getByRole("button", { name: "Prepare", exact: true }).click();
+      await cards.nth(1).getByText("Ready", { exact: true }).waitFor();
+      await fixture.page.waitForFunction(({ key }) => JSON.parse(localStorage.getItem(key)).lastPreparedProviderModelId === "model-2", { key: storageKey });
+
+      await cards.nth(1).getByRole("button", { name: "Remove", exact: true }).click();
+      await fixture.page.waitForFunction(({ key }) => JSON.parse(localStorage.getItem(key)).lastPreparedProviderModelId === null, { key: storageKey });
+      assert.equal(await cards.count(), 1);
+    } finally {
+      await fixture.browser.close();
+    }
+  });
+});
+
+test("reload automatically prepares the remembered Provider Model exactly once", async (t) => {
+  await forEachBrowser(t, async (browserType) => {
+    const state = { ...savedState({ activeConversation: false }), lastPreparedProviderModelId: "model-1" };
+    const fixture = await openFixture(browserType, { state, workerScript: restorationTransformerWorker, waitUntil: "domcontentloaded", viewport: { width: 1024, height: 768 }, mobile: false });
+    try {
+      await fixture.page.getByText(/Restoring cached model: 42%/).waitFor();
+      await fixture.page.getByText("Ready", { exact: true }).waitFor();
+      await fixture.page.waitForTimeout(150);
+      assert.equal(fixture.workerRequestCount(), 1, "Strict Mode must not start duplicate preparation workers.");
+      const saved = await fixture.page.evaluate((key) => JSON.parse(localStorage.getItem(key)), storageKey);
+      assert.equal(saved.lastPreparedProviderModelId, "model-1");
+    } finally {
+      await fixture.browser.close();
+    }
+  });
+});
+
+test("failed automatic preparation remains recoverable and does not retry", async (t) => {
+  await forEachBrowser(t, async (browserType) => {
+    const state = { ...savedState({ activeConversation: false }), lastPreparedProviderModelId: "model-1" };
+    const fixture = await openFixture(browserType, { state, workerScript: failingRestorationTransformerWorker, viewport: { width: 1024, height: 768 }, mobile: false });
+    try {
+      await fixture.page.getByText("Cached model could not initialize.", { exact: true }).waitFor();
+      await fixture.page.getByRole("button", { name: "Retry", exact: true }).waitFor();
+      await fixture.page.waitForTimeout(200);
+      assert.equal(fixture.workerRequestCount(), 1, "A failed automatic preparation must not retry itself.");
+      assert.equal(await fixture.page.getByText("Ready", { exact: true }).count(), 0);
     } finally {
       await fixture.browser.close();
     }

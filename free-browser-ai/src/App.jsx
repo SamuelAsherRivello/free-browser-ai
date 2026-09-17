@@ -41,6 +41,7 @@ function CopyIcon() {
 export function App() {
   const initial = useRef(restoreState()).current;
   const [providerModels, setProviderModels] = useState(initial.providerModels);
+  const [lastPreparedProviderModelId, setLastPreparedProviderModelId] = useState(initial.lastPreparedProviderModelId);
   const [generationProfiles, setGenerationProfiles] = useState(initial.generationProfiles);
   const [editingConfigurationId, setEditingConfigurationId] = useState(null);
   const [conversations, setConversations] = useState(initial.conversations);
@@ -56,10 +57,11 @@ export function App() {
   const adapters = useRef(new Map());
   const cancellations = useRef(new Map());
   const preparations = useRef(new Map());
+  const autoPreparationStarted = useRef(false);
   const activeConversation = conversations.find((item) => item.id === activeConversationId);
   const availableModels = providerModels.filter((item) => item.status === "ready");
 
-  useEffect(() => saveState({ providerModels, conversations, activeConversationId, view, generationProfiles }), [providerModels, conversations, activeConversationId, view, generationProfiles]);
+  useEffect(() => saveState({ providerModels, conversations, activeConversationId, view, generationProfiles, lastPreparedProviderModelId }), [providerModels, conversations, activeConversationId, view, generationProfiles, lastPreparedProviderModelId]);
   useEffect(() => () => { adapters.current.forEach((adapter) => adapter.release()); preparations.current.forEach((controller) => controller.abort()); }, []);
   useEffect(() => { window.scrollTo({ top: 0, left: 0 }); }, [view]);
   const updateProviderModel = (id, update) => setProviderModels((items) => items.map((item) => item.id === id ? update(item) : item));
@@ -77,6 +79,10 @@ export function App() {
     updateProviderModel(configuration.id, (item) => ({ ...item, status: "loading", error: "", progress: "Starting local runtime...", progressPercent: null, startedAt: Date.now() }));
     try {
       const adapter = await prepareAdapter(configuration.provider, configuration.model, (progress, progressPercent) => updateProviderModel(configuration.id, (item) => ({ ...item, progress, progressPercent: Number.isFinite(progressPercent) ? Math.round(progressPercent) : null })), controller.signal);
+      if (preparations.current.get(configuration.id) !== controller || controller.signal.aborted) {
+        void adapter.release();
+        throw controller.signal.reason instanceof Error ? controller.signal.reason : new Error("Preparation was superseded.");
+      }
       for (const [id, activeAdapter] of adapters.current) {
         if (id !== configuration.id) {
           void activeAdapter.release();
@@ -86,16 +92,29 @@ export function App() {
       }
       adapters.current.set(configuration.id, adapter);
       updateProviderModel(configuration.id, (item) => ({ ...item, status: "ready", error: "", progress: "Ready", progressPercent: 100, startedAt: null }));
+      setLastPreparedProviderModelId(configuration.id);
       return adapter;
     } catch (error) {
       const rawMessage = controller.signal.reason instanceof Error ? controller.signal.reason.message : error instanceof Error ? error.message : "Preparation failed.";
       const message = rawMessage.includes("bad_alloc") ? "Not enough browser memory to prepare this model. Try the Lightweight 0.5B model, close other tabs, then retry." : rawMessage;
-      updateProviderModel(configuration.id, (item) => ({ ...item, status: "failed", error: message, progress: "Preparation failed", progressPercent: null, startedAt: null }));
+      if (preparations.current.get(configuration.id) === controller) updateProviderModel(configuration.id, (item) => ({ ...item, status: "failed", error: message, progress: "Preparation failed", progressPercent: null, startedAt: null }));
       throw error;
     } finally {
       if (preparations.current.get(configuration.id) === controller) preparations.current.delete(configuration.id);
     }
   };
+
+  useEffect(() => {
+    const configuration = initial.providerModels.find((item) => item.id === initial.lastPreparedProviderModelId);
+    if (!configuration) return undefined;
+    let cancelled = false;
+    const timer = window.setTimeout(() => {
+      if (cancelled || autoPreparationStarted.current) return;
+      autoPreparationStarted.current = true;
+      void prepare(configuration).catch(() => {});
+    }, 0);
+    return () => { cancelled = true; window.clearTimeout(timer); };
+  }, []);
 
   const addConfiguration = () => {
     setSettingsError("");
@@ -114,6 +133,7 @@ export function App() {
     adapters.current.delete(id);
     const next = removeProviderModel(providerModels, conversations, id);
     setProviderModels(next.providerModels);
+    setLastPreparedProviderModelId((current) => current === id ? null : current);
     setConversations(next.conversations);
     if (!next.conversations.some((item) => item.id === activeConversationId)) setActiveConversationId(next.conversations[0]?.id ?? null);
   };

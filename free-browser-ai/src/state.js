@@ -1,4 +1,4 @@
-import { isValidGenerationProfileValue } from "./catalog.js";
+import { isValidGenerationProfileValue, modelFor } from "./catalog.js";
 
 export const storageKey = "free-browser-ai.state.v2";
 export const catalogVersion = 2;
@@ -19,9 +19,10 @@ export function restoreState(storage = localStorage) {
       activeConversationId: saved.activeConversationId ?? saved.conversations[0]?.id ?? null,
       view: ["about", "settings", "chat"].includes(restoredView) ? restoredView : "chat",
       generationProfiles: sanitizeGenerationProfiles(saved.generationProfiles),
+      lastPreparedProviderModelId: validPreparationTarget(saved.providerModels, saved.lastPreparedProviderModelId),
     };
   } catch {
-    return { providerModels: [], conversations: [], activeConversationId: null, view: "chat", generationProfiles: {} };
+    return { providerModels: [], conversations: [], activeConversationId: null, view: "chat", generationProfiles: {}, lastPreparedProviderModelId: null };
   }
 }
 
@@ -33,7 +34,14 @@ export function saveState(state, storage = localStorage) {
     activeConversationId: state.activeConversationId,
     view: state.view,
     generationProfiles: sanitizeGenerationProfiles(state.generationProfiles),
+    lastPreparedProviderModelId: validPreparationTarget(state.providerModels, state.lastPreparedProviderModelId),
   }));
+}
+
+function validPreparationTarget(providerModels, providerModelId) {
+  if (typeof providerModelId !== "string") return null;
+  const configuration = providerModels.find((item) => item.id === providerModelId);
+  return configuration && modelFor(configuration.provider, configuration.model) ? providerModelId : null;
 }
 
 export function sanitizeGenerationProfiles(profiles) {
