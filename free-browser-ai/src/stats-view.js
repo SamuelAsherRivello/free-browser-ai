@@ -5,15 +5,15 @@ import { responseMetrics } from "./metrics.js";
 const loadingStats = { status: "loading", overall: null, rows: [] };
 
 export function formatDuration(durationMs) {
-  if (!Number.isFinite(durationMs)) return "—";
+  if (!Number.isFinite(durationMs)) return "-";
   return durationMs < 1000 ? `${Math.round(durationMs)} ms` : `${(durationMs / 1000).toFixed(2)} s`;
 }
 
-export function StatsContent({ stats = loadingStats }) {
+export function StatsContent({ stats = loadingStats, embedded = false }) {
   const content = [];
 
   if (stats.status === "loading") {
-    content.push(h("p", { className: "stats_state", role: "status", "aria-live": "polite", key: "state" }, "Loading response statistics…"));
+    content.push(h("p", { className: "stats_state", role: "status", "aria-live": "polite", key: "state" }, "Loading response statistics..."));
   } else if (stats.status === "empty") {
     content.push(h("p", { className: "stats_state", role: "status", key: "state" }, "No completed response measurements yet."));
   } else if (stats.status !== "ready") {
@@ -25,26 +25,24 @@ export function StatsContent({ stats = loadingStats }) {
         h("strong", { key: "average" }, formatDuration(stats.overall?.averageResponseMs)),
         h("span", { key: "count" }, `${stats.overall?.responseCount ?? 0} completed responses`),
       ]),
-      h("div", { className: "stats_table_wrapper", key: "table" },
-        h("table", { className: "stats_table" }, [
-          h("caption", { key: "caption" }, "Response time by provider and model"),
-          h("thead", { key: "head" }, h("tr", null, [
-            h("th", { scope: "col", key: "provider" }, "Provider"),
-            h("th", { scope: "col", key: "model" }, "Model"),
-            h("th", { scope: "col", key: "responses" }, "Responses"),
-            h("th", { scope: "col", key: "average" }, "Average response time"),
-          ])),
-          h("tbody", { key: "body" }, stats.rows.map((row) => h("tr", { key: `${row.provider}:${row.model}` }, [
-            h("td", { key: "provider" }, providers[row.provider]?.label ?? row.provider),
-            h("td", { key: "model" }, modelFor(row.provider, row.model)?.label ?? row.model),
-            h("td", { key: "responses" }, row.responseCount),
-            h("td", { key: "average" }, formatDuration(row.averageResponseMs)),
-          ]))),
+      h("div", { className: "stats_rows", role: "table", "aria-label": "Response time by provider and model", key: "rows" }, [
+        h("div", { className: "stats_row stats_row_header", role: "row", key: "header" }, [
+          h("span", { role: "columnheader", key: "provider" }, "Provider"),
+          h("span", { role: "columnheader", key: "model" }, "Model"),
+          h("span", { role: "columnheader", key: "responses" }, "Responses"),
+          h("span", { role: "columnheader", key: "average" }, "Average response time"),
+        ]),
+        ...stats.rows.map((row) => h("div", { className: "stats_row", role: "row", key: `${row.provider}:${row.model}` }, [
+          h("span", { role: "cell", key: "provider" }, providers[row.provider]?.label ?? row.provider),
+          h("span", { role: "cell", key: "model" }, modelFor(row.provider, row.model)?.label ?? row.model),
+          h("span", { role: "cell", key: "responses" }, `${row.responseCount}`),
+          h("span", { role: "cell", key: "average" }, formatDuration(row.averageResponseMs)),
         ])),
+      ]),
     );
   }
 
-  return h("section", { className: "panel settings_panel stats_panel", "aria-labelledby": "stats-title" }, [
+  return h("section", { className: embedded ? "stats_panel embedded_stats" : "panel settings_panel stats_panel", "aria-labelledby": "stats-title" }, [
     h("h1", { id: "stats-title", key: "title" }, "Stats"),
     h("h2", { className: "tab_subheading", key: "subtitle" }, "Assistant response time"),
     h("p", { className: "stats_privacy", key: "privacy" }, "Conversations and inference stay in this browser. After a successful response, shared analytics receives only the provider, model, and elapsed duration. Prompts, responses, identities, device identifiers, and application timestamps are not stored in the analytics data store."),
@@ -53,7 +51,7 @@ export function StatsContent({ stats = loadingStats }) {
   ]);
 }
 
-export function Stats({ metrics = responseMetrics }) {
+export function Stats({ metrics = responseMetrics, embedded = false }) {
   const [stats, setStats] = useState(loadingStats);
 
   useEffect(() => {
@@ -64,5 +62,5 @@ export function Stats({ metrics = responseMetrics }) {
     return () => { active = false; };
   }, [metrics]);
 
-  return h(StatsContent, { stats });
+  return h(StatsContent, { stats, embedded });
 }

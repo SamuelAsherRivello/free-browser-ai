@@ -12,11 +12,12 @@ export function restoreState(storage = localStorage) {
     const saved = JSON.parse(storage.getItem(storageKey));
     if (!Array.isArray(saved?.providerModels) || !Array.isArray(saved?.conversations)) throw new Error("Invalid saved state");
     if (saved.catalogVersion !== catalogVersion) throw new Error("Catalog changed");
+    const restoredView = saved.view === "stats" ? "about" : saved.view;
     return {
       providerModels: saved.providerModels.map((item) => ({ ...item, status: "needs-preparation", progress: "Prepare this model to use it after reload.", error: "" })),
       conversations: saved.conversations,
       activeConversationId: saved.activeConversationId ?? saved.conversations[0]?.id ?? null,
-      view: ["about", "settings", "chat", "stats"].includes(saved.view) ? saved.view : "chat",
+      view: ["about", "settings", "chat"].includes(restoredView) ? restoredView : "chat",
       generationProfiles: sanitizeGenerationProfiles(saved.generationProfiles),
     };
   } catch {

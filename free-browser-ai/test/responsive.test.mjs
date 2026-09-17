@@ -82,7 +82,6 @@ test("responsive fixture exposes every workspace state without preparing a model
       await active.page.getByRole("heading", { name: "Settings", exact: true }).waitFor();
       await active.page.getByRole("button", { name: "About" }).click();
       await active.page.getByRole("heading", { name: "About", exact: true }).waitFor();
-      await active.page.getByRole("button", { name: "Stats" }).click();
       await active.page.getByText("Response statistics are unavailable. Chat remains fully usable.").waitFor();
       await active.page.getByRole("button", { name: "Chat" }).click();
       await active.page.getByRole("region", { name: "Chat 1 - TQ2.5" }).waitFor();
@@ -101,7 +100,7 @@ test("responsive fixture exposes every workspace state without preparing a model
   });
 });
 
-test("Stats renders populated aggregates and all four navigation targets remain keyboard reachable", async (t) => {
+test("About renders populated aggregates and all three navigation targets remain keyboard reachable", async (t) => {
   await forEachBrowser(t, async (browserType) => {
     const fixture = await openFixture(browserType, {
       view: "stats",
@@ -112,34 +111,35 @@ test("Stats renders populated aggregates and all four navigation targets remain 
       },
     });
     try {
+      await fixture.page.getByRole("heading", { name: "About", exact: true }).waitFor();
       await fixture.page.getByRole("heading", { name: "Stats", exact: true }).waitFor();
       await fixture.page.getByText("1.50 s", { exact: true }).first().waitFor();
       assert.equal(await fixture.page.getByRole("cell", { name: "Transformers.js" }).count(), 1);
       assert.equal(await fixture.page.getByRole("cell", { name: "Qwen2.5 0.5B Instruct" }).count(), 1);
 
       const navigation = fixture.page.locator(".top_navigation_tabs button");
-      assert.equal(await navigation.count(), 4, "The workspace must expose four top-level views.");
+      assert.equal(await navigation.count(), 3, "The workspace must expose three top-level views.");
       await navigation.first().focus();
       const focused = [];
-      for (let index = 0; index < 4; index += 1) {
+      for (let index = 0; index < 3; index += 1) {
         focused.push(await fixture.page.evaluate(() => document.activeElement?.textContent));
-        if (index < 3) await fixture.page.keyboard.press("Tab");
+        if (index < 2) await fixture.page.keyboard.press("Tab");
       }
-      assert.deepEqual(focused, ["About", "Settings", "Chat", "Stats"]);
+      assert.deepEqual(focused, ["About", "Settings", "Chat"]);
 
       const layout = await fixture.page.evaluate(() => ({
         documentClientWidth: document.documentElement.clientWidth,
         documentScrollWidth: document.documentElement.scrollWidth,
         documentClientHeight: document.documentElement.clientHeight,
         documentScrollHeight: document.documentElement.scrollHeight,
-        tableClientWidth: document.querySelector(".stats_table_wrapper").clientWidth,
-        tableScrollWidth: document.querySelector(".stats_table_wrapper").scrollWidth,
+        statsRowsClientWidth: document.querySelector(".stats_rows").clientWidth,
+        statsRowsScrollWidth: document.querySelector(".stats_rows").scrollWidth,
         targets: [...document.querySelectorAll(".top_navigation_tabs button")].map((button) => button.getBoundingClientRect().toJSON()),
       }));
-      assert.ok(layout.documentScrollHeight > layout.documentClientHeight, "Stats must use document scrolling on a short mobile viewport.");
-      assert.ok(layout.documentScrollWidth <= layout.documentClientWidth, "Stats must not create horizontal page clipping.");
-      assert.ok(layout.tableScrollWidth >= layout.tableClientWidth, "The Stats table must remain within its horizontal wrapper.");
-      assert.ok(layout.targets.every(({ width, height }) => width >= 44 && height >= 44), `Every Stats navigation target must be at least 44 by 44 CSS pixels: ${JSON.stringify(layout.targets)}`);
+      assert.ok(layout.documentScrollHeight > layout.documentClientHeight, "About must use document scrolling on a short mobile viewport.");
+      assert.ok(layout.documentScrollWidth <= layout.documentClientWidth, "Embedded About stats must not create horizontal page clipping.");
+      assert.ok(layout.statsRowsScrollWidth <= layout.statsRowsClientWidth + 1, "Compact Stats rows must not require horizontal scrolling.");
+      assert.ok(layout.targets.every(({ width, height }) => width >= 44 && height >= 44), `Every navigation target must be at least 44 by 44 CSS pixels: ${JSON.stringify(layout.targets)}`);
     } finally {
       await fixture.browser.close();
     }

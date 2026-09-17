@@ -88,18 +88,18 @@ test("the selected workspace tab persists while Chat is the first-visit default"
   saveState({ providerModels: [], conversations: [], activeConversationId: null, view: "settings" }, storage);
   if (restoreState(storage).view !== "settings") throw new Error("The selected workspace tab was not restored.");
   saveState({ providerModels: [], conversations: [], activeConversationId: null, view: "stats" }, storage);
-  if (restoreState(storage).view !== "stats") throw new Error("The Stats workspace tab was not restored.");
+  if (restoreState(storage).view !== "about") throw new Error("A stale Stats workspace tab must migrate to About.");
 });
 
-test("Stats renders loading, empty, unavailable, and aggregate-only populated states", () => {
-  const loading = renderToStaticMarkup(createElement(StatsContent, { stats: { status: "loading" } }));
-  const empty = renderToStaticMarkup(createElement(StatsContent, { stats: { status: "empty", overall: { responseCount: 0, averageResponseMs: null }, rows: [] } }));
-  const unavailable = renderToStaticMarkup(createElement(StatsContent, { stats: { status: "unavailable" } }));
-  const populated = renderToStaticMarkup(createElement(StatsContent, { stats: { status: "ready", overall: { responseCount: 3, averageResponseMs: 1500 }, rows: [{ provider: "transformers", model: "onnx-community/Qwen2.5-0.5B-Instruct", responseCount: 3, averageResponseMs: 1500 }] } }));
+test("embedded Stats renders loading, empty, unavailable, and aggregate-only populated states", () => {
+  const loading = renderToStaticMarkup(createElement(StatsContent, { embedded: true, stats: { status: "loading" } }));
+  const empty = renderToStaticMarkup(createElement(StatsContent, { embedded: true, stats: { status: "empty", overall: { responseCount: 0, averageResponseMs: null }, rows: [] } }));
+  const unavailable = renderToStaticMarkup(createElement(StatsContent, { embedded: true, stats: { status: "unavailable" } }));
+  const populated = renderToStaticMarkup(createElement(StatsContent, { embedded: true, stats: { status: "ready", overall: { responseCount: 3, averageResponseMs: 1500 }, rows: [{ provider: "transformers", model: "onnx-community/Qwen2.5-0.5B-Instruct", responseCount: 3, averageResponseMs: 1500 }] } }));
   if (!loading.includes("Loading response statistics")) throw new Error("Stats needs a loading state.");
   if (!empty.includes("No completed response measurements yet")) throw new Error("Stats needs an empty state.");
   if (!unavailable.includes("Response statistics are unavailable")) throw new Error("Stats needs an unavailable state.");
-  for (const text of ["Average assistant response time", "1.50 s", "Provider", "Model", "Responses", "Average response time", "Transformers.js", "Qwen2.5 0.5B Instruct", ">3<"]) if (!populated.includes(text)) throw new Error(`Stats aggregate is missing: ${text}`);
+  for (const text of ["embedded_stats", "Average assistant response time", "1.50 s", "3 completed responses", "Provider", "Model", "Responses", "Average response time", "Transformers.js", "Qwen2.5 0.5B Instruct", ">3<", "provider, model, and elapsed duration", "Prompts, responses, identities, device identifiers, and application timestamps"]) if (!populated.includes(text)) throw new Error(`Stats aggregate is missing: ${text}`);
   for (const forbidden of ["total_duration_ms", "totalDurationMs", "raw duration", "cumulative total"]) if (populated.includes(forbidden)) throw new Error(`Stats exposed a forbidden field: ${forbidden}`);
 });
 
@@ -121,7 +121,8 @@ test("workspace declares the required accessible chat behavior", async () => {
   const [page, app, adapters, transformerWorker, webllmWorker, styles] = await Promise.all(["index.html", "src/App.jsx", "src/adapters.js", "src/transformers.worker.js", "src/webllm.worker.js", "src/style.css"].map((file) => readFile(new URL(file, appRoot), "utf8")));
   for (const text of ["<title>Free Browser AI</title>", 'id="content_layer"', 'id="ui_layer"']) if (!page.includes(text)) throw new Error(`Missing page shell: ${text}`);
   for (const role of ["corner_top_left", "corner_top_right", "corner_bottom_left", "corner_bottom_right"]) if (!app.includes(`corner ${role}`)) throw new Error(`Missing ${role} corner.`);
-  for (const text of ["About", "Local browser AI", "Provider Models", "Conversations", "conversationTitleFor", "Q2.5", "Released to free RAM for the other ready Provider Model.", "This Provider Model is already configured below.", "disabled_button_tooltip", "Add Conversation", "Settings", "Prepare", "Retry", "Submit (Enter)", "Shift+Enter adds a new line", "Retry original prompt", "clipboard.writeText", "Reset local workspace", "role=\"tablist\"", "<RichContent>{message.content}</RichContent>"]) if (!app.includes(text) && !styles.includes(text)) throw new Error(`Missing workspace behavior: ${text}`);
+  for (const text of ["About", "Local browser AI", "Runtimes", "Benefits", "Drawbacks", "<Stats embedded />", "Provider Models", "Conversations", "conversationTitleFor", "Q2.5", "Released to free RAM for the other ready Provider Model.", "This Provider Model is already configured below.", "disabled_button_tooltip", "Add Conversation", "Settings", "Prepare", "Retry", "Submit (Enter)", "Shift+Enter adds a new line", "Retry original prompt", "clipboard.writeText", "Reset local workspace", "role=\"tablist\"", "<RichContent>{message.content}</RichContent>"]) if (!app.includes(text) && !styles.includes(text)) throw new Error(`Missing workspace behavior: ${text}`);
+  if (app.includes('onClick={() => setView("stats")}') || app.includes('view === "stats"')) throw new Error("Stats must not remain a standalone top-level route.");
   for (const dependency of ["transformers.worker.js", "webllm.worker.js", "@mlc-ai/web-llm", "CreateWebWorkerMLCEngine", "navigator.gpu", "modelFor(provider, modelId)", "interruptGenerate"]) if (!adapters.includes(dependency)) throw new Error(`Missing runtime adapter behavior: ${dependency}`);
   for (const text of ["handler.onmessage.bind(handler)", "!model", "not available in this installed runtime", "event.error?.message"]) if (!webllmWorker.includes(text) && !adapters.includes(text)) throw new Error(`Missing robust WebLLM behavior: ${text}`);
   if (!transformerWorker.includes("qwenChatTemplate") || !transformerWorker.includes("repetition_penalty")) throw new Error("Transformers.js must apply the Qwen chat template and generation profile.");
@@ -136,7 +137,7 @@ test("mobile navigation separates the brand from full-width touch targets", asyn
   const styles = await readFile(new URL("src/style.css", appRoot), "utf8");
   for (const rule of [
     ".top_navigation { flex-direction: column-reverse; gap: .5rem; }",
-    ".top_navigation_tabs { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); width: 100%; }",
+    ".top_navigation_tabs { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); width: 100%; }",
     ".workspace_brand { justify-content: space-between; padding-right: 0; width: 100%; }",
     ".corner_title { white-space: nowrap; }",
     ".workspace_brand a { height: 2.75rem; justify-content: center; width: 2.75rem; }",
