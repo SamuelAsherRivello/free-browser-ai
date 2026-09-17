@@ -1,4 +1,6 @@
 import { readFile } from "node:fs/promises";
+import { resolve } from "node:path";
+import { fileURLToPath } from "node:url";
 import test from "node:test";
 import { createElement } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
@@ -13,6 +15,11 @@ const memoryStorage = () => { const values = new Map(); return { getItem: (key) 
 
 test("builds for the Free Browser AI GitHub Pages path", () => {
   if (viteConfig.base !== "/free-browser-ai/") throw new Error("The GitHub Pages build must use the Free Browser AI path.");
+});
+
+test("loads local Supabase configuration from the documented repository-root env file", () => {
+  const repositoryRoot = fileURLToPath(new URL("../../", import.meta.url));
+  if (!viteConfig.envDir || resolve(viteConfig.envDir) !== resolve(repositoryRoot)) throw new Error("Vite must load the documented repository-root .env.local file.");
 });
 
 test("catalog exposes lightweight and powerful Qwen models with download estimates", () => {
