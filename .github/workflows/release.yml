@@ -37,6 +37,9 @@ jobs:
           printf 'version=%s\n' "$next" > version.txt
           echo "value=$next" >> "$GITHUB_OUTPUT"
       - name: Build project
+        env:
+          VITE_SUPABASE_URL: ${{ vars.VITE_SUPABASE_URL }}
+          VITE_SUPABASE_PUBLISHABLE_KEY: ${{ secrets.VITE_SUPABASE_PUBLISHABLE_KEY }}
         run: npm run build
       - name: Install Chromium
         run: npx playwright install --with-deps chromium

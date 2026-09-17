@@ -6,6 +6,7 @@ import viteConfig from "../../vite.config.js";
 import { addProviderModel, catalogVersion, removeProviderModel, restoreGenerationProfile, restoreState, saveState, storageKey } from "../src/state.js";
 import { effectiveGenerationProfile, modelFor, modelOptionLabel, modelsFor, providerModelKey, providers } from "../src/catalog.js";
 import { RichContent } from "../src/rich-content.js";
+import { StatsContent } from "../src/stats-view.js";
 
 const appRoot = new URL("../", import.meta.url);
 const memoryStorage = () => { const values = new Map(); return { getItem: (key) => values.get(key) ?? null, setItem: (key, value) => values.set(key, value) }; };
@@ -79,6 +80,20 @@ test("the selected workspace tab persists while Chat is the first-visit default"
   const storage = memoryStorage();
   saveState({ providerModels: [], conversations: [], activeConversationId: null, view: "settings" }, storage);
   if (restoreState(storage).view !== "settings") throw new Error("The selected workspace tab was not restored.");
+  saveState({ providerModels: [], conversations: [], activeConversationId: null, view: "stats" }, storage);
+  if (restoreState(storage).view !== "stats") throw new Error("The Stats workspace tab was not restored.");
+});
+
+test("Stats renders loading, empty, unavailable, and aggregate-only populated states", () => {
+  const loading = renderToStaticMarkup(createElement(StatsContent, { stats: { status: "loading" } }));
+  const empty = renderToStaticMarkup(createElement(StatsContent, { stats: { status: "empty", overall: { responseCount: 0, averageResponseMs: null }, rows: [] } }));
+  const unavailable = renderToStaticMarkup(createElement(StatsContent, { stats: { status: "unavailable" } }));
+  const populated = renderToStaticMarkup(createElement(StatsContent, { stats: { status: "ready", overall: { responseCount: 3, averageResponseMs: 1500 }, rows: [{ provider: "transformers", model: "onnx-community/Qwen2.5-0.5B-Instruct", responseCount: 3, averageResponseMs: 1500 }] } }));
+  if (!loading.includes("Loading response statistics")) throw new Error("Stats needs a loading state.");
+  if (!empty.includes("No completed response measurements yet")) throw new Error("Stats needs an empty state.");
+  if (!unavailable.includes("Response statistics are unavailable")) throw new Error("Stats needs an unavailable state.");
+  for (const text of ["Average assistant response time", "1.50 s", "Provider", "Model", "Responses", "Average response time", "Transformers.js", "Qwen2.5 0.5B Instruct", ">3<"]) if (!populated.includes(text)) throw new Error(`Stats aggregate is missing: ${text}`);
+  for (const forbidden of ["total_duration_ms", "totalDurationMs", "raw duration", "cumulative total"]) if (populated.includes(forbidden)) throw new Error(`Stats exposed a forbidden field: ${forbidden}`);
 });
 
 test("chat content renders supported Markdown and fenced code", () => {
@@ -114,7 +129,7 @@ test("mobile navigation separates the brand from full-width touch targets", asyn
   const styles = await readFile(new URL("src/style.css", appRoot), "utf8");
   for (const rule of [
     ".top_navigation { flex-direction: column-reverse; gap: .5rem; }",
-    ".top_navigation_tabs { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); width: 100%; }",
+    ".top_navigation_tabs { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); width: 100%; }",
     ".workspace_brand { justify-content: space-between; padding-right: 0; width: 100%; }",
     ".corner_title { white-space: nowrap; }",
     ".workspace_brand a { height: 2.75rem; justify-content: center; width: 2.75rem; }",
