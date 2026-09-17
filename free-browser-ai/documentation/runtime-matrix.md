@@ -2,6 +2,8 @@
 
 Free Browser AI downloads model artifacts directly from the listed public sources. It does not bundle model weights or send prompts to an application backend.
 
+The optional Stats integration sends only the selected provider ID, selected model ID, and rounded elapsed duration after a successful complete response. It stores aggregate counts and cumulative timing totals rather than individual measurements. Prompts, responses, identities, device identifiers, IP addresses, user agents, and application timestamps are excluded. Public results are unverified community measurements, not benchmark-grade data.
+
 | Provider | Model | Tier | Approx. download | Public source | License | Browser requirements |
 | --- | --- | --- | --- | --- | --- | --- |
 | Transformers.js | `onnx-community/Qwen2.5-0.5B-Instruct` | Lightweight | 750 MiB | https://huggingface.co/onnx-community/Qwen2.5-0.5B-Instruct | Apache-2.0 upstream Qwen2.5 license | Modern browser; CPU/WASM works, with WebGPU optional for acceleration. |

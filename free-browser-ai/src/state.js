@@ -16,7 +16,7 @@ export function restoreState(storage = localStorage) {
       providerModels: saved.providerModels.map((item) => ({ ...item, status: "needs-preparation", progress: "Prepare this model to use it after reload.", error: "" })),
       conversations: saved.conversations,
       activeConversationId: saved.activeConversationId ?? saved.conversations[0]?.id ?? null,
-      view: saved.view === "settings" ? "settings" : "chat",
+      view: ["about", "settings", "chat", "stats"].includes(saved.view) ? saved.view : "chat",
       generationProfiles: sanitizeGenerationProfiles(saved.generationProfiles),
     };
   } catch {

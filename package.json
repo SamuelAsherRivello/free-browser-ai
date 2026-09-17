@@ -9,12 +9,13 @@
     "capture:screenshot": "node free-browser-ai/test/capture-screenshot.mjs",
     "pw": "playwright-cli",
     "pw:help": "playwright-cli --help",
-    "test": "node --test --test-isolation=none free-browser-ai/test/page.test.mjs",
+    "test": "node --test --test-isolation=none free-browser-ai/test/page.test.mjs free-browser-ai/test/metrics.test.mjs",
     "test:responsive": "node --test --test-isolation=none free-browser-ai/test/responsive.test.mjs"
   },
   "dependencies": {
     "@huggingface/transformers": "^4.2.0",
     "@mlc-ai/web-llm": "^0.2.85",
+    "@supabase/supabase-js": "^2.116.0",
     "@vitejs/plugin-react": "^6.1.1",
     "react": "^19.3.0",
     "react-dom": "^19.3.0",

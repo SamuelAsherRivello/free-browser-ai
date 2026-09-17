@@ -7,6 +7,8 @@ import { createServer } from "vite";
 const configFile = fileURLToPath(new URL("../../vite.config.js", import.meta.url));
 const storageKey = "free-browser-ai.state.v2";
 const modelId = "onnx-community/Qwen2.5-0.5B-Instruct";
+const statsUrl = "https://stats.test";
+const statsPublishableKey = "sb_publishable_responsive_test";
 const browserTypes = { chromium, webkit };
 const selectedBrowserNames = process.env.RESPONSIVE_BROWSER ? [process.env.RESPONSIVE_BROWSER] : Object.keys(browserTypes);
 let server;
@@ -39,11 +41,14 @@ function savedState({ activeConversation = true, view = "settings" } = {}) {
 }
 
 async function openFixture(browserType, options = {}) {
-  const { activeConversation = true, view = "settings", viewport = { width: 390, height: 844 }, mobile = true } = options;
+  const { activeConversation = true, view = "settings", viewport = { width: 390, height: 844 }, mobile = true, statsResponse } = options;
   const browser = await browserType.launch();
   const context = await browser.newContext({ viewport, hasTouch: mobile, isMobile: mobile });
   await context.addInitScript(({ key, state }) => localStorage.setItem(key, JSON.stringify(state)), { key: storageKey, state: savedState({ activeConversation, view }) });
   const page = await context.newPage();
+  if (statsResponse !== undefined) await page.route(`${statsUrl}/**`, (route) => statsResponse === null
+    ? route.fulfill({ status: 503, contentType: "application/json", body: JSON.stringify({ message: "Unavailable" }) })
+    : route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify(statsResponse) }));
   await page.goto(appUrl, { waitUntil: "networkidle" });
   return { browser, page };
 }
@@ -57,6 +62,8 @@ async function forEachBrowser(t, callback) {
 }
 
 before(async () => {
+  process.env.VITE_SUPABASE_URL = statsUrl;
+  process.env.VITE_SUPABASE_PUBLISHABLE_KEY = statsPublishableKey;
   server = await createServer({ configFile, logLevel: "silent", server: { host: "127.0.0.1", port: 0, strictPort: false } });
   await server.listen();
   const address = server.httpServer.address();
@@ -70,11 +77,13 @@ after(async () => {
 
 test("responsive fixture exposes every workspace state without preparing a model", async (t) => {
   await forEachBrowser(t, async (browserType) => {
-    const active = await openFixture(browserType);
+    const active = await openFixture(browserType, { statsResponse: null });
     try {
       await active.page.getByRole("heading", { name: "Settings", exact: true }).waitFor();
       await active.page.getByRole("button", { name: "About" }).click();
       await active.page.getByRole("heading", { name: "About", exact: true }).waitFor();
+      await active.page.getByRole("button", { name: "Stats" }).click();
+      await active.page.getByText("Response statistics are unavailable. Chat remains fully usable.").waitFor();
       await active.page.getByRole("button", { name: "Chat" }).click();
       await active.page.getByRole("region", { name: "Chat 1 - TQ2.5" }).waitFor();
     } finally {
@@ -88,6 +97,51 @@ test("responsive fixture exposes every workspace state without preparing a model
       await setup.page.getByLabel("Provider Model").waitFor();
     } finally {
       await setup.browser.close();
+    }
+  });
+});
+
+test("Stats renders populated aggregates and all four navigation targets remain keyboard reachable", async (t) => {
+  await forEachBrowser(t, async (browserType) => {
+    const fixture = await openFixture(browserType, {
+      view: "stats",
+      viewport: { width: 390, height: 640 },
+      statsResponse: {
+        overall: { response_count: 3, average_response_ms: 1500 },
+        by_provider_model: [{ provider: "transformers", model: modelId, response_count: 3, average_response_ms: 1500 }],
+      },
+    });
+    try {
+      await fixture.page.getByRole("heading", { name: "Stats", exact: true }).waitFor();
+      await fixture.page.getByText("1.50 s", { exact: true }).first().waitFor();
+      assert.equal(await fixture.page.getByRole("cell", { name: "Transformers.js" }).count(), 1);
+      assert.equal(await fixture.page.getByRole("cell", { name: "Qwen2.5 0.5B Instruct" }).count(), 1);
+
+      const navigation = fixture.page.locator(".top_navigation_tabs button");
+      assert.equal(await navigation.count(), 4, "The workspace must expose four top-level views.");
+      await navigation.first().focus();
+      const focused = [];
+      for (let index = 0; index < 4; index += 1) {
+        focused.push(await fixture.page.evaluate(() => document.activeElement?.textContent));
+        if (index < 3) await fixture.page.keyboard.press("Tab");
+      }
+      assert.deepEqual(focused, ["About", "Settings", "Chat", "Stats"]);
+
+      const layout = await fixture.page.evaluate(() => ({
+        documentClientWidth: document.documentElement.clientWidth,
+        documentScrollWidth: document.documentElement.scrollWidth,
+        documentClientHeight: document.documentElement.clientHeight,
+        documentScrollHeight: document.documentElement.scrollHeight,
+        tableClientWidth: document.querySelector(".stats_table_wrapper").clientWidth,
+        tableScrollWidth: document.querySelector(".stats_table_wrapper").scrollWidth,
+        targets: [...document.querySelectorAll(".top_navigation_tabs button")].map((button) => button.getBoundingClientRect().toJSON()),
+      }));
+      assert.ok(layout.documentScrollHeight > layout.documentClientHeight, "Stats must use document scrolling on a short mobile viewport.");
+      assert.ok(layout.documentScrollWidth <= layout.documentClientWidth, "Stats must not create horizontal page clipping.");
+      assert.ok(layout.tableScrollWidth >= layout.tableClientWidth, "The Stats table must remain within its horizontal wrapper.");
+      assert.ok(layout.targets.every(({ width, height }) => width >= 44 && height >= 44), `Every Stats navigation target must be at least 44 by 44 CSS pixels: ${JSON.stringify(layout.targets)}`);
+    } finally {
+      await fixture.browser.close();
     }
   });
 });
